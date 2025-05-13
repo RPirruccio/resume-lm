@@ -97,6 +97,22 @@ Check out the live demo at [resumelm.com](https://resumelm.com)
 - Prisma ORM
 - Supabase Auth
 
+## 🧪 Testing
+
+This project uses [Jest](https://jestjs.io/) for running tests. The tests are located in the `/tests` directory.
+
+Key tests include:
+- `tests/ai.test.ts`: Focuses on testing the AI-driven resume tailoring functionality, ensuring the output adheres to the defined Zod schemas and content expectations.
+- Sample data files like `tests/sample-base-resume.ts` and `tests/sample-job-description.ts` are used to provide consistent input for these tests.
+
+To run the tests, you can use:
+```bash
+pnpm test
+# or if you use npm
+# npm run test 
+```
+Ensure your `.env.test` file is configured with necessary API keys if tests involve live API calls.
+
 ## 🚀 Getting Started
 
 1. Clone the repository:
