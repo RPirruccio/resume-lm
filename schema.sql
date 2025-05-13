@@ -55,10 +55,16 @@ EXECUTE FUNCTION update_updated_at_column();
 CREATE TABLE IF NOT EXISTS public.jobs (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
   user_id uuid NOT NULL,
-  title text NOT NULL,
-  company text NULL,
+  position_title text NOT NULL, -- Renamed from title
+  company_name text NULL,       -- Renamed from company
   description text NULL,
   job_url text NULL,
+  location TEXT NULL,           -- Added
+  salary_range TEXT NULL,       -- Added
+  keywords TEXT[] NULL DEFAULT '{}', -- Added
+  work_location TEXT NULL,      -- Added
+  employment_type TEXT NULL,    -- Added
+  is_active BOOLEAN NULL DEFAULT TRUE, -- Added
   created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
   updated_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
   CONSTRAINT jobs_pkey PRIMARY KEY (id),

@@ -8,6 +8,15 @@ An intelligent, open-source resume builder powered by AI that helps create and t
 
 ![Dashboard Screenshot](public/images/ss1.webp)
 
+## 🔱 Fork Information & Development Context
+
+**This repository is a fork of the original ResumeLM project by [olyaiy](https://github.com/olyaiy), available at [https://github.com/olyaiy/resume-lm](https://github.com/olyaiy/resume-lm). All credit for the foundational work and initial vision goes to the original creator.**
+
+This fork has adapted its development methodology. Key changes for developers looking to contribute or understand this version include:
+
+*   **Context Management:** This project now utilizes **Cline**, an AI software engineering assistant, in conjunction with a structured **Memory Bank** (located in the `/memory-bank` directory) to maintain project context, track progress, and guide development decisions.
+*   **Removal of Previous Context Systems:** Any previous context management systems specific to other development environments (such as `.cursorrules` or similar hidden directory configurations) have been removed in favor of the Memory Bank approach. Future development and contributions should leverage and update the Memory Bank.
+
 ## ✨ Live Demo
 
 Check out the live demo at [resumelm.com](https://resumelm.com)
@@ -123,12 +132,9 @@ This application uses Supabase for authentication and database features. You nee
    - Go to SQL Editor
    - Paste and run the SQL script
 
-**Option 2: Using the Supabase CLI**
-   - Install the Supabase CLI
-   - Run the following command:
-   ```bash
-   supabase db push --db-url=your_supabase_db_url schema.sql
-   ```
+**Option 2: Using the Supabase CLI (for migrations)**
+   - If you are managing schema changes through Supabase migrations (typically in the `supabase/migrations` directory), you would use commands like `supabase db push`.
+   - However, for applying the consolidated `schema.sql` file directly if you're setting up fresh and not using the individual migration files, Option 1 (SQL Editor) is generally more straightforward.
 
 5. Start the development server:
 ```bash
