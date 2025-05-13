@@ -5,7 +5,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { AlertCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
-import { ProUpgradeButton } from "@/components/settings/pro-upgrade-button"
+// import { ProUpgradeButton } from "@/components/settings/pro-upgrade-button" // ProUpgradeButton removed
 
 function checkForApiKeys() {
   const storedKeys = localStorage.getItem('resumelm-api-keys')
@@ -74,13 +74,14 @@ export function ApiKeyAlert() {
           </Link>
         </div>
         
-        <div className="flex items-center justify-between border-t border-red-200/60 pt-4">
+        {/* Pro upgrade section removed for local-only version */}
+        {/* <div className="flex items-center justify-between border-t border-red-200/60 pt-4">
           <span className="text-red-600">
             Or upgrade to Pro to get Full Access to All Models
           </span>
           <ProUpgradeButton />
-        </div>
+        </div> */}
       </AlertDescription>
     </Alert>
   )
-} 
+}

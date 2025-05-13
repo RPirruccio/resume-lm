@@ -1,37 +1,38 @@
 import { z } from "zod";
 
-// Base schemas for reusable components
+// Base schemas for reusable components - Used for AI generation target
+// Descriptions added to guide the LLM. Key fields made non-optional.
 export const workExperienceSchema = z.object({
-  company: z.string().optional(),
-  position: z.string().optional(),
-  location: z.string().optional(),
-  date: z.string().optional(),
-  description: z.array(z.string()).optional(),
-  technologies: z.array(z.string()).optional(),
+  company: z.string().describe("Name of the company."),
+  position: z.string().describe("Job title or position held."),
+  location: z.string().optional().describe("Location of the company (e.g., City, State or Remote)."),
+  date: z.string().describe("Employment dates (e.g., MM/YYYY - MM/YYYY or MM/YYYY - Present)."),
+  description: z.array(z.string()).describe("Array of strings. Each string MUST be a complete bullet point detailing a key responsibility or achievement, formatted as a self-contained STAR (Situation, Task, Action, Result) statement. Aim for 3-4 such bullet points per work experience. Ensure all experiences are included; for less relevant ones, focus on transferable soft skills using the STAR method."),
+  technologies: z.array(z.string()).optional().describe("List of relevant technologies used."),
 });
 
 export const educationSchema = z.object({
-  school: z.string().optional(),
-  degree: z.string().optional(),
-  field: z.string().optional(),
-  location: z.string().optional(),
-  date: z.string().optional(),
-  gpa: z.string().optional(),
-  achievements: z.array(z.string()).optional(),
+  school: z.string().describe("Name of the educational institution."),
+  degree: z.string().describe("Degree obtained (e.g., Bachelor of Science)."),
+  field: z.string().optional().describe("Field of study (e.g., Computer Science)."),
+  location: z.string().optional().describe("Location of the institution."),
+  date: z.string().optional().describe("Dates attended or graduation date."),
+  gpa: z.string().optional().describe("Grade Point Average (GPA), if relevant."),
+  achievements: z.array(z.string()).optional().describe("List of relevant achievements or honors."),
 });
 
 export const projectSchema = z.object({
-  name: z.string().optional(),
-  description: z.array(z.string()).optional(),
-  date: z.string().optional(),
-  technologies: z.array(z.string()).optional(),
-  url: z.string().optional(),
-  github_url: z.string().optional(),
+  name: z.string().describe("Name of the project."),
+  description: z.array(z.string()).describe("Array of strings. Each string MUST be a complete bullet point detailing a key feature, responsibility, or achievement, formatted as a self-contained STAR (Situation, Task, Action, Result) statement. Aim for 2-4 such bullet points per project."),
+  date: z.string().optional().describe("Date or timeframe of the project."),
+  technologies: z.array(z.string()).optional().describe("List of relevant technologies used."),
+  url: z.string().optional().describe("URL link to the live project (e.g., https://example.com). This should be a valid URL string if provided."),
+  github_url: z.string().optional().describe("URL link to the project's GitHub repository (e.g., https://github.com/user/repo). This should be a valid URL string if provided."),
 });
 
 export const skillSchema = z.object({
-  category: z.string().optional(),
-  items: z.array(z.string()).optional(),
+  category: z.string().describe("Category of the skills (e.g., Frontend Development, Cloud & DevOps)."),
+  items: z.array(z.string()).describe("List of specific skills within the category."),
 });
 
 
@@ -147,8 +148,11 @@ export const resumeSchema = z.object({
 //   document_settings: documentSettingsSchema.optional(),
 //   section_order: z.array(z.string()).optional(),
 //   section_configs: z.record(sectionConfigSchema).optional(),
-  has_cover_letter: z.boolean().default(false),
-  cover_letter: z.record(z.unknown()).nullable().optional(),
+  // Note: professional_summary is intentionally omitted from simplifiedResumeSchema
+  // as it's often better generated contextually or added later.
+  // Basic contact info is also omitted as it should come from the base resume.
+  has_cover_letter: z.boolean().default(false).optional(), // Keep optional as it's not core to tailoring
+  cover_letter: z.record(z.unknown()).nullable().optional(), // Keep optional
 });
 
 // Type inference helpers
@@ -200,13 +204,16 @@ export const simplifiedJobSchema = z.object({
     is_active: z.boolean().default(true).optional(),
   });
   
+// Schema specifically for the AI's output when tailoring a resume.
+// Sections are now required to encourage the AI to generate them.
 export const simplifiedResumeSchema = z.object({
-    work_experience: z.array(workExperienceSchema).optional(),
-    education: z.array(educationSchema).optional(),
-    skills: z.array(skillSchema).optional(),
-    projects: z.array(projectSchema).optional(),
-    target_role: z.string()
-  });
+    target_role: z.string().describe("The specific job title the resume is tailored for (e.g., AI Infrastructure Engineer). This MUST be populated."),
+    work_experience: z.array(workExperienceSchema).describe("Array of work experience objects, tailored to the target role."),
+    education: z.array(educationSchema).describe("Array of education objects."),
+    skills: z.array(skillSchema).describe("Array of skill objects, highlighting relevant skills for the target role."),
+    projects: z.array(projectSchema).describe("Array of project objects, showcasing relevant experience for the target role."),
+    // professional_summary: z.string().optional().describe("A brief professional summary tailored for the target role."), // Consider adding if needed
+  }).describe("A structured representation of a resume tailored for a specific job role, focusing on work experience, education, skills, and projects relevant to that role.");
 
 // Add type inference helper
 export type Job = {
@@ -310,4 +317,4 @@ export const resumeScoreSchema = z.object({
   overallImprovements: z.array(z.string())
 });
 
-export type ResumeScoreMetrics = z.infer<typeof resumeScoreSchema>; 
+export type ResumeScoreMetrics = z.infer<typeof resumeScoreSchema>;

@@ -60,12 +60,6 @@ Check out the live demo at [resumelm.com](https://resumelm.com)
 - 🎨 Custom design system with consistent UI/UX
 - 🔄 Real-time updates and preview
 
-### Subscription Features
-- 🆓 Free tier with limited functionality
-- ⭐ Pro subscription plan with enhanced features
-- 💳 Stripe integration for payment processing
-- 🔄 Plan upgrade/downgrade capabilities
-
 ## 🎨 Design System
 
 ### Core Principles
@@ -113,7 +107,11 @@ pnpm install
 cp .env.example .env.local
 ```
 
-Required environment variables: Look in the `.env.example` file for the full list of required variables.
+Required environment variables: Copy `.env.example` to `.env.local` and fill in the values.
+   - **Supabase Keys**: Essential for database and authentication.
+   - **AI API Keys**: Required for AI features. You can add keys for services like OpenAI, Anthropic, etc. The application will allow selection based on configured keys.
+   - **Redis Configuration (Optional)**: Used for rate limiting. The application will function without these, but rate limiting will be disabled.
+   - See `.env.example` for all variables.
 
 4. Set up the database:
 
@@ -148,7 +146,7 @@ This application requires several tables in your Supabase database:
 - **profiles**: Stores user profile information including work experience, education, and skills
 - **resumes**: Stores user-created resumes and their content
 - **jobs**: Tracks job descriptions for resume tailoring
-- **subscriptions**: Manages user subscription status
+- **subscriptions**: Originally for managing user subscription status. In this local version, its role is significantly reduced or vestigial as subscription features have been removed. Core user data is in `profiles`.
 
 The complete schema with all required fields is provided in the `schema.sql` file.
 

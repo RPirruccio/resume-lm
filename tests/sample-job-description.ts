@@ -1,0 +1,20 @@
+import { z } from 'zod';
+import { simplifiedJobSchema } from '../src/lib/zod-schemas'; // Relative path
+
+// Type for the job description input, inferred from simplifiedJobSchema
+type JobDescriptionInput = z.infer<typeof simplifiedJobSchema>;
+
+export const sampleJobDescriptionForTest: JobDescriptionInput = {
+  company_name: "", // Assuming empty string is intended based on input
+  position_title: "Founding Engineer - Infrastructure and Backend",
+  job_url: "", // Assuming empty string is intended based on input
+  description: "• Work closely with the technical founder to build enterprise software for MCP systems and design technical architecture.\n• Focus on Terraform, GitHub Actions, CI/CD, and Python backends.\n• Build and deploy MCP servers and clients.\n• Implement secure AI networks in customer infrastructure and Janix AWS.\n• Ensure security, data privacy, and performance standards.\n\nFounding Engineer Opportunity. Join as one of the first technical hires working directly with the technical founder to help establish engineering culture, practices, and technical standards, and influence key architectural decisions that will shape our product for years to come. This role offers an opportunity for rapid growth and leadership as the company scales, along with an equity package reflecting founding team status. The ideal candidate must love IT control systems, observability, logging, monitoring, testing servers and networks, and care deeply about data privacy, trust, and verification. You must be passionate about advancing the open source ecosystem and eager to make meaningful contributions to open source MCP projects. Core requirements include Terraform proficiency, GitHub actions proficiency, strong AWS experience, strong CI/CD experience, Docker proficiency, extensive Python development experience, OAuth 2.1 implementation experience, technical architecture design skills, enterprise engineering experience, a backend engineering background, strong networking knowledge, and experience with Cursor or similar LLM-assisted coding tools. Highly desirable skills include experience building servers and clients, knowledge of Helm, Jenkins and/or other CI/CD tools, familiarity with MCP (Model Context Protocol), experience with AI function calling, and Node.js and/or Go experience. In this role, you'll be working closely alongside the technical founder to build enterprise software for MCP systems and to design technical architecture. There will be a strong focus on Terraform, GitHub Actions, CI/CD, and Python backends. Responsibilities also include building and deploying MCP servers and clients, implementing secure AI networks in both customer infrastructure and Janix AWS, ensuring security, data privacy, and performance standards, and complex infrastructure development for AI applications. This founding role offers an exceptional opportunity for someone with strong infrastructure and backend experience who wants to make a significant impact in AI while leveraging their existing technical skills.",
+  location: "", // Assuming empty string is intended based on input
+  salary_range: "", // Assuming empty string is intended based on input
+  keywords: [
+    "Terraform", "GitHub Actions", "AWS", "CI/CD", "Docker", "Python", "OAuth 2.1", "Networking", "Cursor", "LLM-assisted coding tools", "Server development", "Client development", "Helm", "Jenkins", "MCP (Model Context Protocol)", "AI function calling", "Node.js", "Go", "IT control systems", "Observability", "Logging", "Monitoring", "Server testing", "Network testing", "Infrastructure development", "Backend engineering", "Open source contributions", "Technical architecture design", "Enterprise engineering", "Leadership", "Establishing engineering culture", "Establishing engineering practices", "Establishing technical standards", "Data privacy", "Trust and verification", "AI applications", "Enterprise software", "MCP systems", "Secure AI networks", "Performance standards"
+  ],
+  work_location: "in_person", // Updated based on input
+  employment_type: "full_time",
+  is_active: true
+};

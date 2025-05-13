@@ -1,6 +1,7 @@
 'use client';
 
 import { Profile, WorkExperience, Education, Project } from "@/lib/types";
+import { sortItemsByDate } from "@/lib/utils"; // Changed import name
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -30,7 +31,6 @@ import { ProfileSkillsForm } from "@/components/profile/profile-skills-form";
 import { formatProfileWithAI } from "../../utils/actions/profiles/ai";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 
-import { ProUpgradeButton } from "@/components/settings/pro-upgrade-button";
 import { AlertTriangle } from "lucide-react";
 import { importResume, updateProfile } from "@/utils/actions/profiles/actions";
 
@@ -52,7 +52,7 @@ export function ProfileEditForm({ profile: initialProfile }: ProfileEditFormProp
 
   // Sync with server state when initialProfile changes
   useEffect(() => {
-    setProfile(initialProfile);
+    setProfile(initialProfile); // Removed automatic sorting on initial load
   }, [initialProfile]);
 
   // Add useEffect to clear error when dialogs close
@@ -63,13 +63,27 @@ export function ProfileEditForm({ profile: initialProfile }: ProfileEditFormProp
   }, [isResumeDialogOpen, isTextImportDialogOpen]);
 
   const updateField = (field: keyof Profile, value: unknown) => {
+    // Removed automatic sorting from updateField
     setProfile(prev => ({ ...prev, [field]: value }));
   };
 
   const handleSubmit = async () => {
     try {
       setIsSubmitting(true);
-      await updateProfile(profile);
+
+      // Create a profile object with sorted arrays for submission
+      const profileToSubmit = {
+        ...profile,
+        work_experience: profile.work_experience ? sortItemsByDate([...profile.work_experience]) : [],
+        projects: profile.projects ? sortItemsByDate([...profile.projects]) : [],
+        education: profile.education ? sortItemsByDate([...profile.education]) : [],
+      };
+      
+      await updateProfile(profileToSubmit); // Pass the sorted version
+            
+      // Update local state to reflect what was saved (already sorted)
+      setProfile(profileToSubmit); 
+
       toast.success("Changes saved successfully", {
         position: "bottom-right",
         className: "bg-gradient-to-r from-emerald-500 to-green-500 text-white border-none",
@@ -228,9 +242,10 @@ export function ProfileEditForm({ profile: initialProfile }: ProfileEditFormProp
         
         await importResume(cleanedProfile);
         
+        // Removed automatic sorting from resume upload
         setProfile(prev => ({
           ...prev,
-          ...cleanedProfile
+          ...cleanedProfile // Data is added as-is, will be sorted on save
         }));
         toast.success("Content imported successfully - Don't forget to save your changes", {
           position: "bottom-right",
@@ -426,10 +441,7 @@ export function ProfileEditForm({ profile: initialProfile }: ProfileEditFormProp
                           <p className="font-medium">API Key Required</p>
                           <p className="text-red-500/90">{apiKeyError}</p>
                           <div className="mt-2 flex flex-col gap-2 justify-start">
-                            <div className="w-auto mx-auto">
-                              <ProUpgradeButton />
-                            </div>
-                            <div className="text-center text-xs text-red-400">or</div>
+                            <div className="text-center text-xs text-red-400">Please set your API Keys in Settings.</div>
                             <Button
                               variant="outline"
                               size="sm"
@@ -519,10 +531,7 @@ export function ProfileEditForm({ profile: initialProfile }: ProfileEditFormProp
                           <p className="font-medium">API Key Required</p>
                           <p className="text-red-500/90">{apiKeyError}</p>
                           <div className="mt-2 flex flex-col gap-2 justify-start">
-                            <div className="w-auto mx-auto">
-                              <ProUpgradeButton />
-                            </div>
-                            <div className="text-center text-xs text-red-400">or</div>
+                            <div className="text-center text-xs text-red-400">Please set your API Keys in Settings.</div>
                             <Button
                               variant="outline"
                               size="sm"
@@ -731,4 +740,4 @@ export function ProfileEditForm({ profile: initialProfile }: ProfileEditFormProp
       </div>
     </div>
   );
-} 
+}

@@ -26,29 +26,37 @@ const textProcessingCache = new Map<string, ReactNode[]>();
 
 // Memoized text processing function
 function useTextProcessor() {
-  const processText = useCallback((text: string, ignoreMarkdown = false) => {
+  const processText = useCallback((text: string | undefined | null, ignoreMarkdown = false): ReactNode[] => {
+    // Gracefully handle undefined, null, or empty string inputs
+    if (typeof text !== 'string' || text === null || text.trim() === '') {
+      // Return an array with a single empty Text node, or an empty array if preferred
+      return [<Text key="empty-text-node"></Text>];
+    }
+
     // Check cache first
     const cacheKey = `${text}-${ignoreMarkdown}`;
     if (textProcessingCache.has(cacheKey)) {
-      return textProcessingCache.get(cacheKey);
+      const cachedValue = textProcessingCache.get(cacheKey);
+      // Ensure the cached value is valid, otherwise return a default
+      return cachedValue !== undefined ? cachedValue : [<Text key="empty-cache-fallback"></Text>];
     }
 
-    // If ignoring markdown, extract content between asterisks or return plain text
+    let processed: ReactNode[];
     if (ignoreMarkdown) {
+      // The original error line: text.match might be called on undefined if text wasn't a string.
+      // Now 'text' is guaranteed to be a non-empty string here.
       const content = text.match(/\*\*(.*?)\*\*/)?.[1] || text;
-      const processed = [<Text key={0}>{content}</Text>];
-      textProcessingCache.set(cacheKey, processed);
-      return processed;
+      processed = [<Text key={0}>{content}</Text>];
+    } else {
+      // 'text' is guaranteed to be a non-empty string here.
+      const parts = text.split(/(\*\*.*?\*\*)/g);
+      processed = parts.map((part, index) => {
+        if (part.startsWith('**') && part.endsWith('**')) {
+          return <Text key={index} style={{ fontFamily: 'Helvetica-Bold' }}>{part.slice(2, -2)}</Text>;
+        }
+        return <Text key={index}>{part}</Text>;
+      });
     }
-
-    // Process text if not in cache
-    const parts = text.split(/(\*\*.*?\*\*)/g);
-    const processed = parts.map((part, index) => {
-      if (part.startsWith('**') && part.endsWith('**')) {
-        return <Text key={index} style={{ fontFamily: 'Helvetica-Bold' }}>{part.slice(2, -2)}</Text>;
-      }
-      return <Text key={index}>{part}</Text>;
-    });
 
     // Store in cache
     textProcessingCache.set(cacheKey, processed);
@@ -138,7 +146,7 @@ const SkillsSection = memo(function SkillsSection({
         {skills.map((skillCategory, index) => (
           <View key={index} style={styles.skillCategory}>
             <Text style={styles.skillCategoryTitle}>{skillCategory.category}:</Text>
-            <Text style={styles.skillItem}>{skillCategory.items.join(', ')}</Text>
+            <Text style={styles.skillItem}>{skillCategory.items && Array.isArray(skillCategory.items) ? skillCategory.items.join(', ') : ''}</Text>
           </View>
         ))}
       </View>
@@ -168,7 +176,7 @@ const ExperienceSection = memo(function ExperienceSection({
             </View>
             <Text style={styles.dateRange}>{experience.date}</Text>
           </View>
-          {experience.description.map((bullet, bulletIndex) => (
+          {experience.description && Array.isArray(experience.description) && experience.description.map((bullet, bulletIndex) => (
             <View key={bulletIndex} style={styles.bulletPoint}>
               <Text style={styles.bulletDot}>•</Text>
               <View style={styles.bulletText}>
@@ -221,14 +229,14 @@ const ProjectsSection = memo(function ProjectsSection({
                 )}
               </View>
             </View>
-            {project.technologies && (
+            {project.technologies && Array.isArray(project.technologies) && (
               <Text style={styles.projectTechnologies}>
-                {project.technologies.map(tech => tech.replace(/\*\*/g, '')).join(', ')}
+                {project.technologies.map(tech => tech ? tech.replace(/\*\*/g, '') : '').join(', ')}
               </Text>
             )}
           </View>
           
-          {project.description.map((bullet, bulletIndex) => (
+          {project.description && Array.isArray(project.description) && project.description.map((bullet, bulletIndex) => (
             <View key={bulletIndex} style={styles.bulletPoint}>
               <Text style={styles.bulletDot}>•</Text>
               <View style={styles.bulletText}>
@@ -266,7 +274,7 @@ const EducationSection = memo(function EducationSection({
             </View>
             <Text style={styles.dateRange}>{edu.date}</Text>
           </View>
-          {edu.achievements && edu.achievements.map((achievement, bulletIndex) => (
+          {edu.achievements && Array.isArray(edu.achievements) && edu.achievements.map((achievement, bulletIndex) => (
             <View key={bulletIndex} style={styles.bulletPoint}>
               <Text style={styles.bulletDot}>•</Text>
               <View style={styles.bulletText}>
@@ -573,4 +581,4 @@ export const ResumePDFDocument = memo(function ResumePDFDocument({ resume }: Res
     prevProps.resume === nextProps.resume &&
     prevProps.variant === nextProps.variant
   );
-}); 
+});

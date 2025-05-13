@@ -14,8 +14,18 @@ export async function checkRateLimit(
   capacity: number = 80,
   duration: number = 5 * 60 * 60 // 5 hours in seconds
 ): Promise<void> {
+  // Bypass rate limiting if Redis is not initialized OR if in development mode
+  if (!redis || process.env.NODE_ENV === 'development') {
+    if (process.env.NODE_ENV === 'development') {
+      // Optional: console.log("Rate limiting bypassed in development mode.");
+    } else {
+      // Optional: console.warn("Rate limiting is disabled: Redis client not initialized.");
+    }
+    return;
+  }
+
   const LEAK_RATE = capacity / duration; // tokens leaked per second
-  const redisKey = `rate-limit:pro:${userId}`;
+  const redisKey = `rate-limit:pro:${userId}`; // Key can remain, or be simplified e.g., `rate-limit:${userId}`
   const now = Date.now() / 1000; // current time in seconds
 
   // Get existing bucket data from Redis.

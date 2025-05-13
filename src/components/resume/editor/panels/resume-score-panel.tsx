@@ -123,20 +123,30 @@ export default function ResumeScorePanel({ resume }: ResumeScorePanelProps) {
     setIsCalculating(true);
     try {
         const MODEL_STORAGE_KEY = 'resumelm-default-model';
-        // const LOCAL_STORAGE_KEY = 'resumelm-api-keys';
+        const API_KEYS_STORAGE_KEY = 'resumelm-api-keys'; // Corrected variable name and uncommented
   
         const selectedModel = localStorage.getItem(MODEL_STORAGE_KEY);
-        // const storedKeys = localStorage.getItem(LOCAL_STORAGE_KEY);
-        const apiKeys: string[] = [];
+        const storedApiKeys = localStorage.getItem(API_KEYS_STORAGE_KEY);
+        
+        let parsedApiKeys: ApiKey[] = [];
+        if (storedApiKeys) {
+          try {
+            parsedApiKeys = JSON.parse(storedApiKeys);
+          } catch (e) {
+            console.error("Failed to parse API keys from localStorage", e);
+            // Handle error or set to empty array if parsing fails
+            parsedApiKeys = [];
+          }
+        }
         
       // Call the generateResumeScore action with current resume
       const newScore = await generateResumeScore({
         ...resume,
-        section_configs: undefined,
-        section_order: undefined
+        section_configs: undefined, // Ensure these are not passed if not needed by the schema
+        section_order: undefined   // or if they cause issues with the AI model
       }, {
-        model: selectedModel || '',
-        apiKeys: apiKeys as unknown as ApiKey[]
+        model: selectedModel || '', // Fallback to empty string if no model is selected
+        apiKeys: parsedApiKeys 
       });
 
       // Update state and storage

@@ -177,4 +177,4 @@ export async function createEmptyJob(): Promise<Job> {
 
   revalidatePath('/', 'layout');
   return data;
-} 
+}

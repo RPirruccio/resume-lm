@@ -44,5 +44,17 @@ next-env.d.ts
 .cursorrules
 .aider*
 
-.__tests__
-/tests
+# Large media files (consider Git LFS for these if they need to be versioned)
+*.mp4
+*.mov
+*.avi
+*.webm
+*.zip
+*.tar.gz
+*.rar
+*.psd
+*.ai
+*.sketch
+# If ResumeLM.mp4 is very large and not essential for all dev environments,
+# you might specifically ignore it:
+# public/ResumeLM.mp4

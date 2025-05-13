@@ -6,11 +6,12 @@ import {
   simplifiedJobSchema, 
   simplifiedResumeSchema, 
 } from "@/lib/zod-schemas";
+import { TAILORED_RESUME_GENERATOR_SYSTEM_MESSAGE } from "@/lib/prompts"; // Added import
 import { Job, Resume } from "@/lib/types";
 import { AIConfig } from '@/utils/ai-tools';
 import { initializeAIClient } from '@/utils/ai-tools';
-import { getSubscriptionPlan } from '../stripe/actions';
-import { checkRateLimit } from '@/lib/rateLimiter';
+// import { getSubscriptionPlan } from '../stripe/actions'; // Removed unused import
+// import { checkRateLimit } from '@/lib/rateLimiter'; // Removed unused import
 
 
 export async function tailorResumeToJob(
@@ -18,54 +19,44 @@ export async function tailorResumeToJob(
   jobListing: z.infer<typeof simplifiedJobSchema>,
   config?: AIConfig
 ) {
-  const { plan, id } = await getSubscriptionPlan(true);
-  const isPro = plan === 'pro';
-  const aiClient = isPro ? initializeAIClient(config, isPro, true) : initializeAIClient(config);
+  // const planResult = await getSubscriptionPlan(true); // Removed as id is no longer needed
+  // const plan = typeof planResult === 'string' ? planResult : planResult.plan; // Removed unused variable
+  // const id = typeof planResult === 'string' ? '' : planResult.id; // Ensure id is a string, default to empty if planResult is string // Removed as id is no longer needed
+  // const isPro = plan === 'pro'; // Removed unused variable
+  const aiClient = initializeAIClient(config); // Corrected: initializeAIClient only takes config
 // Check rate limit
-  await checkRateLimit(id);
+  // await checkRateLimit(id); // Temporarily commented out for local testing
+
+  console.log('[tailorResumeToJob] Initializing AI call...');
+  console.log('[tailorResumeToJob] Resume input:', JSON.stringify(resume, null, 2));
+  console.log('[tailorResumeToJob] Job listing input:', JSON.stringify(jobListing, null, 2));
+  console.log('[tailorResumeToJob] AI Client object:', aiClient); // Log the aiClient to see its structure
 
 try {
-    const { object } = await generateObject({
-      model: aiClient as LanguageModelV1, 
-      schema: z.object({
+    console.log('[tailorResumeToJob] Calling generateObject with full schema...');
+    
+    // Determine if the client is Gemini to conditionally omit maxTokens
+    // This is a heuristic; a more robust way might involve checking aiClient.provider or modelId prefix
+    const isGemini = aiClient.modelId?.includes('gemini');
+
+    // Define the specific schema structure for this AI call
+    const tailorResumeAISchema = z.object({
       content: simplifiedResumeSchema,
-    }),
-    system: `
+    });
 
-You are ResumeLM, an advanced AI resume transformer that specializes in optimizing technical resumes for software engineering roles using machine-learning-driven ATS strategies. Your mission is to transform the provided resume into a highly targeted, ATS-friendly document that precisely aligns with the job description.
+    // Define a more specific type for options using the actual schema type
+    type TailorGenerateObjectOptions = {
+      model: LanguageModelV1;
+      schema: typeof tailorResumeAISchema; // Use the specific schema type
+      system: string;
+      prompt: string;
+      maxTokens?: number;
+    };
 
-**Core Objectives:**
-
-1. **Integrate Job-Specific Terminology & Reorder Content:**  
-   - Replace generic descriptions with precise, job-specific technical terms drawn from the job description (e.g., "Generative AI," "Agentic AI," "LLMOps," "Azure OpenAI," "Azure Machine Learning Studio," etc.).
-   - Reorder or emphasize sections and bullet points to prioritize experiences that most closely match the role's requirements.
-   - Use strong, active language that mirrors the job description's vocabulary and focus.
-   - Ensure all modifications are strictly based on the resume's original data—never invent new tools, versions, or experiences.
-
-2. **STAR Framework for Technical Storytelling:**  
-   For every bullet point describing work experience, structure the content as follows (using reasonable assumptions when needed without hallucinating details):
-   - **Situation:** Briefly set the technical or business context (e.g., "During a cloud migration initiative…" or "When addressing the need for advanced generative AI solutions…").
-   - **Task:** Define the specific responsibility or challenge aligned with the job's requirements (e.g., "To design and implement scalable AI models using Azure OpenAI…").
-   - **Action:** Describe the technical actions taken, using job-specific verbs and detailed technology stack information (e.g., "Leveraged containerization with Docker and orchestrated microservices via Kubernetes to deploy models in a secure, scalable environment").
-   - **Result:** Quantify the impact with clear, job-relevant metrics (e.g., "Achieved a 3.2x throughput increase" or "Reduced processing time by 80%").
-
-3. **Enhanced Technical Detailing:**  
-   - Convert simple technology lists into detailed, hierarchical representations that include versions and relevant frameworks (e.g., "Python → Python 3.10 (NumPy, PyTorch 2.0, FastAPI)").
-   - Enrich work experience descriptions with architectural context and measurable performance metrics (e.g., "Designed event-driven microservices handling 25k RPS").
-   - Use internal annotations (e.g., [JD: ...]) during processing solely as references. These annotations must be completely removed from the final output.
-
-4. **Strict Transformation Constraints:**  
-   - Preserve the original employment chronology and all factual details.
-   - Maintain a 1:1 mapping between the job description requirements and the resume content.
-   - If a direct match is missing, map the resume content to a relevant job description concept (e.g., "Legacy system modernization" → "Cloud migration patterns").
-   - Every claim of improvement must be supported with a concrete, quantifiable metric.
-   - Eliminate all internal transformation annotations (e.g., [JD: ...]) from the final output.
-
-**Your Task:**  
-Transform the resume according to these principles, ensuring the final output is a polished, ATS-optimized document that accurately reflects the candidate's technical expertise and directly addresses the job description—without any internal annotations.
-
-
-    `,
+    const generateObjectOptions: TailorGenerateObjectOptions = {
+      model: aiClient as LanguageModelV1,
+      schema: tailorResumeAISchema, // Use the defined schema constant
+      system: TAILORED_RESUME_GENERATOR_SYSTEM_MESSAGE.content as string, // Use imported system message
 prompt: `
     This is the Resume:
     ${JSON.stringify(resume, null, 2)}
@@ -73,22 +64,47 @@ prompt: `
     This is the Job Description:
     ${JSON.stringify(jobListing, null, 2)}
     `,
-  });
+    };
 
+    if (!isGemini) {
+      // For non-Gemini models (like Claude), we know 4096 is the practical limit we hit.
+      generateObjectOptions.maxTokens = 4096;
+      console.log('[tailorResumeToJob] Using maxTokens: 4096 for non-Gemini model.');
+    } else {
+      generateObjectOptions.maxTokens = 32768; // Setting a high maxTokens for Gemini
+      console.log('[tailorResumeToJob] Using maxTokens: 32768 for Gemini model.');
+    }
 
+    const { object, usage, finishReason } = await generateObject(generateObjectOptions);
+
+    console.log('[tailorResumeToJob] generateObject usage:', usage);
+    console.log('[tailorResumeToJob] generateObject finishReason:', finishReason);
     return object.content satisfies z.infer<typeof simplifiedResumeSchema>;
-  } catch (error) {
-    console.error('Error tailoring resume:', error);
+  } catch (error: unknown) { // Changed to unknown for better type safety
+    console.error('[tailorResumeToJob] Error during generateObject or processing:', error);
+    if (error instanceof Error && error.cause) {
+      console.error('[tailorResumeToJob] Error cause:', error.cause);
+    }
+    // Log additional properties if they exist on the error object
+    if (typeof error === 'object' && error !== null) {
+      if ('text' in error) console.error('[tailorResumeToJob] Error text:', (error as {text: string}).text);
+      if ('response' in error) console.error('[tailorResumeToJob] Error response object:', JSON.stringify((error as Record<string, unknown>).response, null, 2));
+      if ('usage' in error) console.error('[tailorResumeToJob] Error usage:', JSON.stringify((error as Record<string, unknown>).usage, null, 2));
+      if ('finishReason' in error) console.error('[tailorResumeToJob] Error finishReason:', (error as {finishReason: string}).finishReason);
+      if ('digest' in error) console.error('[tailorResumeToJob] Error digest:', (error as {digest: string}).digest);
+    }
     throw error;
   }
 }
 
 export async function formatJobListing(jobListing: string, config?: AIConfig) {
-  const { plan, id } = await getSubscriptionPlan(true);
-  const isPro = plan === 'pro';
-  const aiClient = isPro ? initializeAIClient(config, isPro, true) : initializeAIClient(config);
+  // const planResult = await getSubscriptionPlan(true); // Removed as id is no longer needed
+  // const plan = typeof planResult === 'string' ? planResult : planResult.plan; // Removed unused variable
+  // const id = typeof planResult === 'string' ? '' : planResult.id; // Ensure id is a string, default to empty if planResult is string // Removed as id is no longer needed
+  // const isPro = plan === 'pro'; // Removed unused variable, assuming not needed here either
+  const aiClient = initializeAIClient(config); // Corrected: initializeAIClient only takes config
 // Check rate limit
-  await checkRateLimit(id);
+  // await checkRateLimit(id); // Temporarily commented out for local testing
 
 try {
     const { object } = await generateObject({
@@ -142,8 +158,19 @@ try {
 
 
     return object.content satisfies Partial<Job>;
-  } catch (error) {
-    console.error('Error formatting job listing:', error);
+  } catch (error: unknown) { // Changed to unknown for better type safety
+    console.error('[formatJobListing] Error during generateObject or processing:', error);
+    if (error instanceof Error && error.cause) {
+      console.error('[formatJobListing] Error cause:', error.cause);
+    }
+    // Log additional properties if they exist on the error object
+    if (typeof error === 'object' && error !== null) {
+      if ('text' in error) console.error('[formatJobListing] Error text:', (error as {text: string}).text);
+      if ('response' in error) console.error('[formatJobListing] Error response object:', JSON.stringify((error as Record<string, unknown>).response, null, 2));
+      if ('usage' in error) console.error('[formatJobListing] Error usage:', JSON.stringify((error as Record<string, unknown>).usage, null, 2));
+      if ('finishReason' in error) console.error('[formatJobListing] Error finishReason:', (error as {finishReason: string}).finishReason);
+      if ('digest' in error) console.error('[formatJobListing] Error digest:', (error as {digest: string}).digest);
+    }
     throw error;
   }
 }

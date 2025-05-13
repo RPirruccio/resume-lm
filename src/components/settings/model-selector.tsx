@@ -5,7 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/u
 import { toast } from "sonner"
 import { ServiceName } from "@/lib/types"
 import Image from 'next/image'
-import { getSubscriptionPlan } from "@/utils/actions/stripe/actions"
+// import { getSubscriptionPlan } from "@/utils/actions/stripe/actions" // Removed as subscriptionPlan is no longer used
 
 
 const MODEL_STORAGE_KEY = 'resumelm-default-model'
@@ -28,6 +28,7 @@ interface AIModel {
 const MODEL_ICONS = {
   anthropic: '/claude.webp',
   openai: '/chatgpt.png',
+  google: '/gemini-logo-full.png', // Added Google/Gemini icon
   // deepseek: '/deepseek.png',
 } as const
 
@@ -63,6 +64,24 @@ const AI_MODELS: AIModel[] = [
     shortName: 'Haiku 3.5',
     provider: 'anthropic'
   },
+  {
+    id: 'gemini-1.5-pro-latest', // Default Gemini model
+    name: 'Gemini 1.5 Pro (Latest)',
+    shortName: 'Gemini 1.5 Pro',
+    provider: 'google'
+  },
+  {
+    id: 'gemini-2.5-pro-preview-05-06', 
+    name: 'Gemini 2.5 Pro Preview (05-06)', 
+    shortName: 'Gemini 2.5 Pro (05-06)',
+    provider: 'google'
+  },
+  {
+    id: 'gemini-2.5-pro-exp-03-25', 
+    name: 'Gemini 2.5 Pro Experimental (03-25)', 
+    shortName: 'Gemini 2.5 Pro (03-25)',
+    provider: 'google'
+  },
   { 
     id: 'gpt-4o', 
     name: 'GPT-4o', 
@@ -86,7 +105,7 @@ const AI_MODELS: AIModel[] = [
 export function ModelSelector() {
   const [defaultModel, setDefaultModel] = useState<string>('')
   const [apiKeys, setApiKeys] = useState<ApiKey[]>([])
-  const [subscriptionPlan, setSubscriptionPlan] = useState<string>('')
+  // const [subscriptionPlan, setSubscriptionPlan] = useState<string>('') // Removed subscriptionPlan state
 
   // Load stored data on mount
   useEffect(() => {
@@ -128,7 +147,7 @@ export function ModelSelector() {
 
   // Watch for API key changes
   useEffect(() => {
-    if (subscriptionPlan === 'pro') return // Skip key checks for Pro users
+    // Removed: if (subscriptionPlan === 'pro') return // Skip key checks for Pro users
     
     const currentModel = AI_MODELS.find(m => m.id === defaultModel)
     if (currentModel && !apiKeys.some(k => k.service === currentModel.provider)) {
@@ -146,28 +165,28 @@ export function ModelSelector() {
         toast.info('No AI models available. Please add an API key in settings.')
       }
     }
-  }, [apiKeys, defaultModel, subscriptionPlan])
+  }, [apiKeys, defaultModel]) // Removed subscriptionPlan from dependencies
 
-  // Add useEffect to fetch subscription status
-  useEffect(() => {
-    const checkPlan = async () => {
-      const plan = await getSubscriptionPlan()
-      setSubscriptionPlan(plan)
-    }
-    checkPlan()
-  }, [])
+  // Add useEffect to fetch subscription status - REMOVED as subscriptionPlan is no longer used
+  // useEffect(() => {
+  //   const checkPlan = async () => {
+  //     const plan = await getSubscriptionPlan()
+  //     setSubscriptionPlan(plan)
+  //   }
+  //   checkPlan()
+  // }, [])
 
   const handleModelChange = (modelId: string) => {
     const selectedModel = AI_MODELS.find(m => m.id === modelId)
     if (!selectedModel) return
 
-    // Skip API key check for Pro users
-    if (subscriptionPlan !== 'pro') {
-      const hasRequiredKey = apiKeys.some(k => k.service === selectedModel.provider)
-      if (!hasRequiredKey) {
-        toast.error(`Please add your ${selectedModel.provider === 'openai' ? 'OpenAI' : 'Anthropic'} API key first`)
-        return
-      }
+    // Always check for API key, as there's no "pro" plan to bypass this
+    const hasRequiredKey = apiKeys.some(k => k.service === selectedModel.provider)
+    if (!hasRequiredKey) {
+      // Make provider name in toast message more dynamic
+      const providerName = selectedModel.provider.charAt(0).toUpperCase() + selectedModel.provider.slice(1);
+      toast.error(`Please add your ${providerName} API key first`)
+      return
     }
 
     setDefaultModel(modelId)
@@ -176,7 +195,7 @@ export function ModelSelector() {
   }
 
   const isModelSelectable = (modelId: string) => {
-    if (subscriptionPlan === 'pro') return true // Bypass API check for Pro users
+    // Always check for API key, as there's no "pro" plan
     const model = AI_MODELS.find(m => m.id === modelId)
     return model ? apiKeys.some(k => k.service === model.provider) : false
   }
@@ -197,7 +216,8 @@ export function ModelSelector() {
               </>
             ) : (
               <span className="text-muted-foreground">
-                {subscriptionPlan === 'pro' ? 'Please select a model' : 'No model available'}
+                {/* Simplified display logic: if API keys exist, prompt to select, else "no model" */}
+                {apiKeys.length > 0 ? 'Please select a model' : 'No model available'}
               </span>
             )}
           </div>
@@ -223,4 +243,4 @@ export function ModelSelector() {
       </Select>
     </div>
   )
-} 
+}

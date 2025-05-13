@@ -9,7 +9,7 @@ import { AIConfig } from "@/utils/ai-tools";
 import { generateObject } from "ai";
 import { initializeAIClient } from "@/utils/ai-tools";
 import { resumeScoreSchema } from "@/lib/zod-schemas";
-import { getSubscriptionPlan } from "../stripe/actions";
+// import { getSubscriptionPlan } from "../stripe/actions"; // Removed
 
 
 //  SUPABASE ACTIONS
@@ -388,14 +388,12 @@ export async function countResumes(type: 'base' | 'tailored' | 'all'): Promise<n
 
 export async function generateResumeScore(
   resume: Resume, 
-  config?: AIConfig
+  config: AIConfig // Made config non-optional
 ) {
   
-
-
-  const subscriptionPlan = await getSubscriptionPlan();
-  const isPro = subscriptionPlan === 'pro';
-  const aiClient = isPro ? initializeAIClient(config, isPro) : initializeAIClient(config);
+  // const subscriptionPlan = await getSubscriptionPlan(); // Removed
+  // const isPro = subscriptionPlan === 'pro'; // Removed
+  const aiClient = initializeAIClient(config); // Simplified call
 
 
   console.log("RESUME IS", resume);

@@ -70,19 +70,38 @@ const AI_MODELS: AIModel[] = [
   // Stable models
   { id: 'gpt-4o', name: 'GPT-4o', provider: 'openai', unstable: false },
   { id: 'gpt-4o-mini', name: 'GPT-4o Mini', provider: 'openai', unstable: false },
+  { id: 'claude-3-7-sonnet-20250219', name: 'Claude 3.7 Sonnet', provider: 'anthropic', unstable: false },
   { id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet', provider: 'anthropic', unstable: false },
   { id: 'claude-3-5-haiku-20241022', name: 'Claude 3.5 Haiku', provider: 'anthropic', unstable: false },
   { id: 'llama-3.1-8b-instant', name: 'Llama 3.1 8B', provider: 'groq', unstable: false },
   { id: 'llama-3.3-70b-versatile', name: 'Llama 3.3 70B ', provider: 'groq', unstable: false },
   { id: 'gemma2-9b-it', name: 'Gemma 2 9B', provider: 'groq', unstable: false },
 
-  // Unstable models
+  // Unstable models (Google Gemini models added here)
+  { 
+    id: 'gemini-1.5-pro-latest', 
+    name: 'Gemini 1.5 Pro (Latest)', 
+    provider: 'google', 
+    unstable: true // Marking as unstable as per existing Gemini entries
+  },
+  { 
+    id: 'gemini-2.5-pro-preview-05-06', 
+    name: 'Gemini 2.5 Pro Preview (05-06)', 
+    provider: 'google', 
+    unstable: true 
+  },
+  { 
+    id: 'gemini-2.5-pro-exp-03-25', 
+    name: 'Gemini 2.5 Pro Experimental (03-25)', 
+    provider: 'google', 
+    unstable: true 
+  },
   { id: 'gemini-2.0-flash', name: 'Gemini 2.0 Flash', provider: 'google', unstable: true },
   { id: 'gemini-2.0-flash-lite-preview-02-05', name: 'Gemini 2.0 Flash Lite', provider: 'google', unstable: true },
   { id: 'deepseek-chat', name: 'DeepSeek Chat (V3)', provider: 'deepseek', unstable: true }
 ]
 
-export function ApiKeysForm({ isProPlan }: { isProPlan: boolean }) {
+export function ApiKeysForm() {
   const [apiKeys, setApiKeys] = useState<ApiKey[]>([])
   const [visibleKeys, setVisibleKeys] = useState<Record<ServiceName, boolean>>({} as Record<ServiceName, boolean>)
   const [newKeyValues, setNewKeyValues] = useState<Record<ServiceName, string>>({} as Record<ServiceName, string>)
@@ -107,16 +126,11 @@ export function ApiKeysForm({ isProPlan }: { isProPlan: boolean }) {
     const storedModel = localStorage.getItem(MODEL_STORAGE_KEY)
     if (storedModel) {
       setDefaultModel(storedModel)
-    } else if (isProPlan) {
-      // Set default model to llama-3.3-70b-versatile for pro users if they haven't chosen one
-      setDefaultModel('llama-3.3-70b-versatile')
-      // Save to local storage so this preference persists
-      localStorage.setItem(MODEL_STORAGE_KEY, 'llama-3.3-70b-versatile')
     }
 
     // Mark initial load as complete
     setHasLoaded(true)
-  }, [isProPlan])
+  }, [])
 
   // Save API keys to local storage whenever they change
   useEffect(() => {
@@ -163,7 +177,7 @@ export function ApiKeysForm({ isProPlan }: { isProPlan: boolean }) {
     const autoSelectModel = () => {
       switch (service) {
         case 'anthropic':
-          return 'claude-3-sonnet-20240229'
+          return 'claude-3-5-sonnet-20241022'
         case 'openai':
           return 'gpt-4o'
         case 'deepseek':
@@ -223,13 +237,10 @@ export function ApiKeysForm({ isProPlan }: { isProPlan: boolean }) {
     const selectedModel = AI_MODELS.find(m => m.id === modelId)
     if (!selectedModel) return
 
-    // Skip key check for Pro users
-    if (!isProPlan) {
-      const hasRequiredKey = apiKeys.some(k => k.service === selectedModel.provider)
-      if (!hasRequiredKey) {
-        toast.error(`Please add your ${selectedModel.provider === 'openai' ? 'OpenAI' : 'Anthropic'} API key first`)
-        return
-      }
+    const hasRequiredKey = apiKeys.some(k => k.service === selectedModel.provider)
+    if (!hasRequiredKey) {
+      toast.error(`Please add your ${selectedModel.provider === 'openai' ? 'OpenAI' : 'Anthropic'} API key first`)
+      return
     }
 
     setDefaultModel(modelId)
@@ -237,7 +248,6 @@ export function ApiKeysForm({ isProPlan }: { isProPlan: boolean }) {
   }
 
   const isModelSelectable = (modelId: string) => {
-    if (isProPlan) return true // Bypass check for Pro users
     const model = AI_MODELS.find(m => m.id === modelId)
     if (!model) return false
     return apiKeys.some(k => k.service === model.provider)
@@ -303,17 +313,7 @@ export function ApiKeysForm({ isProPlan }: { isProPlan: boolean }) {
             Add your API keys to use premium AI models. Your keys are stored securely in your browser.
           </p>
           <div className="p-3 rounded-lg bg-amber-50/50 border border-amber-200/50 text-amber-900 text-sm">
-            {isProPlan ? (
-              <>
-                <p><strong>Pro Account Active:</strong> You have full access to all AI models without needing to manage API keys.</p>
-                <p className="mt-1">You can still add personal API keys below if you prefer to use your own credentials.</p>
-              </>
-            ) : (
-              <>
-                <p><strong>Security Note:</strong> API keys are stored locally in your browser. While convenient, this means anyone with access to this device could potentially view your keys.</p>
-                <p className="mt-1">For enhanced security, consider <a href="/pricing" className="text-amber-700 hover:text-amber-800 underline underline-offset-2">upgrading to a Pro account</a> where we securely manage API access for you.</p>
-              </>
-            )}
+            <p><strong>Security Note:</strong> API keys are stored locally in your browser. While convenient, this means anyone with access to this device could potentially view your keys.</p>
           </div>
         </div>
 
@@ -583,4 +583,4 @@ export function ApiKeysForm({ isProPlan }: { isProPlan: boolean }) {
       </div>
     </div>
   )
-} 
+}

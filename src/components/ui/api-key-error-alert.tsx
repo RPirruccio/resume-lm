@@ -1,6 +1,6 @@
 import { AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { ProUpgradeButton } from "@/components/settings/pro-upgrade-button";
+// import { ProUpgradeButton } from "@/components/settings/pro-upgrade-button"; // ProUpgradeButton removed
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 
@@ -35,13 +35,13 @@ export function ApiKeyErrorAlert({ error, router }: ApiKeyErrorAlertProps) {
               ? error
               : ((error as Error)?.message?.includes('OpenAI API key not found') ||
                   JSON.stringify(error).includes('OpenAI API key not found'))
-                  ? "OpenAI API key not found. Upgrade to Pro or set your API key in settings to continue."
+                  ? "OpenAI API key not found. Please set your API key in settings to continue."
                   : ((error as Error)?.message?.includes('invalid x-api-key') || 
                       JSON.stringify(error).includes('authentication_error'))
-                      ? "Your Anthropic API key is invalid. Upgrade to Pro or try updating it in settings and try again."
+                      ? "Your Anthropic API key is invalid. Please try updating it in settings and try again."
                       : ((error as Error)?.message?.includes('Incorrect API key provided') ||
                           JSON.stringify(error).includes('invalid_api_key'))
-                          ? "Your OpenAI API key is invalid. Upgrade to Pro or try updating it in settings and try again."
+                          ? "Your OpenAI API key is invalid. Please try updating it in settings and try again."
                           : ((error as Error)?.message?.includes('Rate limit exceeded') ||
                               JSON.stringify(error).includes('Rate limit exceeded'))
                               ? `You've exceeded the rate limit. Please try again after ${(() => {
@@ -64,7 +64,7 @@ export function ApiKeyErrorAlert({ error, router }: ApiKeyErrorAlertProps) {
                                       hour12: true
                                     });
                                   }
-                                })()}. Upgrade to Pro for higher limits.`
+                                })()}.`
                               : "An error occurred. Please try again or check your settings."}
           </div>
         </div>
@@ -74,11 +74,9 @@ export function ApiKeyErrorAlert({ error, router }: ApiKeyErrorAlertProps) {
           JSON.stringify(error).includes('authentication_error') ? (
           <>
             <div className="w-full h-px bg-red-100" />
-            <div className="text-sm text-red-400 mb-2">
-              Unlock premium features and advanced AI capabilities
-            </div>
-            <div className="flex flex-col items-center gap-2 w-full">
-              <ProUpgradeButton />
+            {/* "Unlock premium features..." message removed */}
+            <div className="flex flex-col items-center gap-2 w-full mt-2"> {/* Added mt-2 for spacing after removing text */}
+              {/* <ProUpgradeButton /> ProUpgradeButton removed */}
               <Button
                 variant="ghost"
                 size="sm"
@@ -98,4 +96,4 @@ export function ApiKeyErrorAlert({ error, router }: ApiKeyErrorAlertProps) {
       </div>
     </div>
   );
-} 
+}
