@@ -1,33 +1,47 @@
 'use client';
 
-import { WorkExperience, Profile } from "@/lib/types";
-import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { WorkExperience, Profile, DescriptionPoint } from "@/lib/types";
+// import { Card, CardContent } from "@/components/ui/card"; // Unused
+// import { Input } from "@/components/ui/input"; // Unused
+// import { Label } from "@/components/ui/label"; // Unused
 import { Button } from "@/components/ui/button";
-import { Plus, Trash2, GripVertical, Check, X, Loader2, Sparkles } from "lucide-react";
+import { Plus } from "lucide-react"; // Removed Trash2, GripVertical as they are in child
 import { cn } from "@/lib/utils";
 import { ImportFromProfileDialog } from "../../management/dialogs/import-from-profile-dialog";
 import { ApiErrorDialog } from "@/components/ui/api-error-dialog";
 
-import { useState, useRef, useEffect, memo } from "react";
+import { useState, useRef, useEffect, memo, useCallback } from "react"; // Added useCallback
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-  TooltipProvider,
-} from "@/components/ui/tooltip";
-import Tiptap from "@/components/ui/tiptap";
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent, // Added for card dragging
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  // useSortable, // Unused in this file directly
+  verticalListSortingStrategy
+} from '@dnd-kit/sortable';
+// import { CSS } from '@dnd-kit/utilities'; // Unused in this file directly
+// Removed Tooltip, Tiptap, AIImprovementPrompt imports as they are now in child components
+// Removed: import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider, } from "@/components/ui/tooltip";
+import { v4 as uuidv4 } from 'uuid'; // Ensure uuidv4 is imported
 import { generateWorkExperiencePoints, improveWorkExperience } from "@/utils/actions/resumes/ai";
-import { AIImprovementPrompt } from "../../shared/ai-improvement-prompt";
-import { AIGenerationSettingsTooltip } from "../components/ai-generation-tooltip";
-import { AISuggestions } from "../../shared/ai-suggestions";
+// import { AIGenerationSettingsTooltip } from "../components/ai-generation-tooltip"; // Unused directly
+// import { AISuggestions as AISuggestionsDisplay } from "../../shared/ai-suggestions"; // Unused directly
 
+import { Editor } from '@tiptap/react'; // Import Editor type
+// import { SortableDescriptionItem } from "./components/sortable-description-item"; // Unused directly
+import { SortableExperienceCardItem, AISuggestion as CardAISuggestion, ImprovedPoint, CardAIConfig } from "./components/sortable-experience-card"; // Removed FocusRequestForPoint
 
-interface AISuggestion {
-  id: string;
-  point: string;
-}
+// Removed old SortableExperienceCardItemProps interface and SortableExperienceCardItem function
+
+// Removed conflicting local AISuggestion interface
 
 interface WorkExperienceFormProps {
   experiences: WorkExperience[];
@@ -36,13 +50,24 @@ interface WorkExperienceFormProps {
   targetRole?: string;
 }
 
-interface ImprovedPoint {
-  original: string;
-  improved: string;
+// This local ImprovedPoint might conflict if SortableExperienceCardItem exports it.
+// interface ImprovedPoint { 
+//   original: DescriptionPoint;
+//   improved: string; 
+// }
+
+// Renaming and re-keying this state
+// interface ImprovementConfig {
+//   [key: number]: { [key: number]: string }; // expIndex -> pointIndex -> prompt
+// }
+interface PointImprovementPromptsMap {
+  [experienceId: string]: { [pointId: string]: string };
 }
 
-interface ImprovementConfig {
-  [key: number]: { [key: number]: string }; // expIndex -> pointIndex -> prompt
+
+interface ParentFocusRequest { // Renamed to avoid conflict with card's FocusRequest
+  experienceIndex: number; // Keep using index here for parent logic
+  descriptionIndex: number; // Keep using index here for parent logic
 }
 
 // Create a comparison function
@@ -53,242 +78,276 @@ function areWorkExperiencePropsEqual(
   return (
     prevProps.targetRole === nextProps.targetRole &&
     JSON.stringify(prevProps.experiences) === JSON.stringify(nextProps.experiences) &&
-    prevProps.profile.id === nextProps.profile.id
+    prevProps.profile.id === nextProps.profile.id // Assuming profile object itself doesn't change frequently, only its ID matters for this comparison
   );
 }
 
 // Export the memoized component
-export const WorkExperienceForm = memo(function WorkExperienceFormComponent({ 
-  experiences, 
-  onChange, 
-  profile, 
-  targetRole = "Software Engineer" 
+export const WorkExperienceForm = memo(function WorkExperienceFormComponent({
+  experiences,
+  onChange,
+  profile,
+  targetRole = "Software Engineer"
 }: WorkExperienceFormProps) {
-  const [aiSuggestions, setAiSuggestions] = useState<{ [key: number]: AISuggestion[] }>({});
-  const [loadingAI, setLoadingAI] = useState<{ [key: number]: boolean }>({});
-  const [loadingPointAI, setLoadingPointAI] = useState<{ [key: number]: { [key: number]: boolean } }>({});
-  const [aiConfig, setAiConfig] = useState<{ [key: number]: { numPoints: number; customPrompt: string } }>({});
-  const [popoverOpen, setPopoverOpen] = useState<{ [key: number]: boolean }>({});
-  const textareaRefs = useRef<{ [key: number]: HTMLTextAreaElement }>({});
-  const [improvedPoints, setImprovedPoints] = useState<{ [key: number]: { [key: number]: ImprovedPoint } }>({});
-  const [improvementConfig, setImprovementConfig] = useState<ImprovementConfig>({});
+  // State refactored to use experienceId (string) as key where appropriate
+  const [aiSuggestionsMap, setAiSuggestionsMap] = useState<{ [experienceId: string]: CardAISuggestion[] }>({}); // Use aliased type
+  const [loadingAIMap, setLoadingAIMap] = useState<{ [experienceId: string]: boolean }>({});
+  const [loadingPointAIMap, setLoadingPointAIMap] = useState<{ [experienceId: string]: { [pointId: string]: boolean } }>({});
+  const [aiConfigMap, setAiConfigMap] = useState<{ [experienceId: string]: CardAIConfig }>({});
+  // popoverOpen and textareaRefs seem unused by the new card structure, keeping them commented for now
+  // const [popoverOpen, setPopoverOpen] = useState<{ [key: number]: boolean }>({});
+  // const textareaRefs = useRef<{ [key: number]: HTMLTextAreaElement }>({});
+  const [improvedPointsMap, setImprovedPointsMap] = useState<{ [experienceId: string]: { [pointId: string]: ImprovedPoint } }>({});
+  const [pointImprovementPromptsMap, setPointImprovementPromptsMap] = useState<PointImprovementPromptsMap>({});
   const [showErrorDialog, setShowErrorDialog] = useState(false);
   const [errorMessage, setErrorMessage] = useState({ title: '', description: '' });
 
-  // Effect to focus textarea when popover opens
-  useEffect(() => {
-    Object.entries(popoverOpen).forEach(([index, isOpen]) => {
-      if (isOpen && textareaRefs.current[Number(index)]) {
-        // Small delay to ensure the popover is fully rendered
-        setTimeout(() => {
-          textareaRefs.current[Number(index)]?.focus();
-        }, 100);
+  const tiptapRefs = useRef<{ [experienceId: string]: { [descriptionId: string]: Editor | null } }>({});
+  const [focusRequest, setFocusRequest] = useState<ParentFocusRequest | null>(null);
+  
+  // Sensors for dragging experience cards
+  const experienceSensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: { delay: 0, distance: 0 },
+    }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+
+  const descriptionSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+  
+  const handleDragEndExperiences = useCallback((event: DragEndEvent) => {
+    const { active, over } = event;
+    if (over && active.id !== over.id) {
+      const oldIndex = experiences.findIndex(exp => exp.id === active.id.toString());
+      const newIndex = experiences.findIndex(exp => exp.id === over.id.toString());
+      if (oldIndex !== -1 && newIndex !== -1) {
+        onChange(arrayMove(experiences, oldIndex, newIndex));
       }
-    });
-  }, [popoverOpen]);
+    }
+  }, [experiences, onChange]);
+
+  // useEffect for popoverOpen and textareaRefs removed as they are not used with the new card structure.
+  
+  useEffect(() => {
+    if (focusRequest) {
+      const { experienceIndex, descriptionIndex } = focusRequest;
+      const expId = experiences[experienceIndex]?.id;
+      const descId = experiences[experienceIndex]?.description[descriptionIndex]?.id;
+
+      if (expId && descId) {
+        const editorInstance = tiptapRefs.current[expId]?.[descId];
+        if (editorInstance && typeof editorInstance.commands.focus === 'function') {
+          setTimeout(() => editorInstance.commands.focus('end'), 100);
+        }
+      }
+      setFocusRequest(null);
+    }
+  }, [focusRequest, experiences]);
 
   const addExperience = () => {
+    const newExpId = uuidv4();
     onChange([{
+      id: newExpId,
       company: "",
       position: "",
       location: "",
       date: "",
-      description: [],
+      description: [] as DescriptionPoint[],
       technologies: []
     }, ...experiences]);
+    // Initialize states for the new experience
+    setAiConfigMap(prev => ({ ...prev, [newExpId]: { numPoints: 3, customPrompt: '' } }));
+    setAiSuggestionsMap(prev => ({ ...prev, [newExpId]: [] }));
+    setImprovedPointsMap(prev => ({ ...prev, [newExpId]: {} }));
+    setPointImprovementPromptsMap(prev => ({ ...prev, [newExpId]: {} }));
+    setLoadingAIMap(prev => ({ ...prev, [newExpId]: false }));
+    setLoadingPointAIMap(prev => ({ ...prev, [newExpId]: {} }));
+    // Other states like loadingAIMap, improvedPointsMap etc. will be set on demand.
   };
 
-  const updateExperience = (index: number, field: keyof WorkExperience, value: string | string[]) => {
-    const updated = [...experiences];
-    updated[index] = { ...updated[index], [field]: value };
-    onChange(updated);
+  const updateExperienceField = (expId: string, field: keyof WorkExperience, value: string | string[] | DescriptionPoint[]) => {
+    const updatedExperiences = experiences.map(exp => 
+      exp.id === expId ? { ...exp, [field]: value } : exp
+    );
+    onChange(updatedExperiences);
   };
 
-  const removeExperience = (index: number) => {
-    onChange(experiences.filter((_, i) => i !== index));
+  const removeExperienceById = (expId: string) => {
+    onChange(experiences.filter(exp => exp.id !== expId));
+    // Clean up state for the removed experience
+    setAiSuggestionsMap(prev => { const newState = {...prev}; delete newState[expId]; return newState; });
+    setLoadingAIMap(prev => { const newState = {...prev}; delete newState[expId]; return newState; });
+    setLoadingPointAIMap(prev => { const newState = {...prev}; delete newState[expId]; return newState; });
+    setAiConfigMap(prev => { const newState = {...prev}; delete newState[expId]; return newState; });
+    setImprovedPointsMap(prev => { const newState = {...prev}; delete newState[expId]; return newState; });
+    setPointImprovementPromptsMap(prev => { const newState = {...prev}; delete newState[expId]; return newState; });
+    if (tiptapRefs.current[expId]) {
+      delete tiptapRefs.current[expId];
+    }
   };
 
   const handleImportFromProfile = (importedExperiences: WorkExperience[]) => {
-    onChange([...importedExperiences, ...experiences]);
+    const newExperiencesWithIds = importedExperiences.map(exp => ({ ...exp, id: exp.id || uuidv4() }));
+    onChange([...newExperiencesWithIds, ...experiences]);
+    // Initialize states for imported experiences
+    newExperiencesWithIds.forEach(exp => {
+      setAiConfigMap(prev => ({ ...prev, [exp.id]: { numPoints: 3, customPrompt: '' } }));
+      setAiSuggestionsMap(prev => ({ ...prev, [exp.id]: [] }));
+    });
   };
 
-  const generateAIPoints = async (index: number) => {
-    const exp = experiences[index];
-    const config = aiConfig[index] || { numPoints: 3, customPrompt: '' };
-    setLoadingAI(prev => ({ ...prev, [index]: true }));
-    setPopoverOpen(prev => ({ ...prev, [index]: false }));
+  const generateAIPointsForExperience = async (expId: string, config: CardAIConfig) => {
+    const exp = experiences.find(e => e.id === expId);
+    if (!exp) return;
+
+    setLoadingAIMap(prev => ({ ...prev, [expId]: true }));
+    // setPopoverOpen(prev => ({ ...prev, [index]: false })); // popoverOpen removed
     
     try {
-      // Get model and API key from local storage
       const MODEL_STORAGE_KEY = 'resumelm-default-model';
       const LOCAL_STORAGE_KEY = 'resumelm-api-keys';
-
       const selectedModel = localStorage.getItem(MODEL_STORAGE_KEY);
       const storedKeys = localStorage.getItem(LOCAL_STORAGE_KEY);
       let apiKeys = [];
-
-      try {
-        apiKeys = storedKeys ? JSON.parse(storedKeys) : [];
-      } catch (error) {
-        console.error('Error parsing API keys:', error);
-      }
+      try { apiKeys = storedKeys ? JSON.parse(storedKeys) : []; } catch (e) { console.error('Error parsing API keys:', e); }
 
       const result = await generateWorkExperiencePoints(
-        exp.position,
-        exp.company,
-        exp.technologies || [],
-        targetRole,
-        config.numPoints,
-        config.customPrompt,
-        {
-          model: selectedModel || '',
-          apiKeys
-        }
+        exp.position, exp.company, exp.technologies || [], targetRole,
+        config.numPoints, config.customPrompt, { model: selectedModel || '', apiKeys }
       );
       
-      const suggestions = result.points.map((point: string) => ({
-        id: Math.random().toString(36).substr(2, 9),
-        point
-      }));
-      
-      setAiSuggestions(prev => ({
-        ...prev,
-        [index]: suggestions
-      }));
+      const newSuggestions = result.points.map((p: string) => ({ id: uuidv4(), point: p }));
+      setAiSuggestionsMap(prev => ({ ...prev, [expId]: newSuggestions }));
+
     } catch (error: Error | unknown) {
-      if (error instanceof Error && (
-          error.message.toLowerCase().includes('api key') || 
-          error.message.toLowerCase().includes('unauthorized') ||
-          error.message.toLowerCase().includes('invalid key') ||
-          error.message.toLowerCase().includes('invalid x-api-key'))
-      ) {
-        setErrorMessage({
-          title: "API Key Error",
-          description: "There was an issue with your API key. Please check your settings and try again."
-        });
+      const err = error as Error;
+      if (err.message.toLowerCase().includes('api key') || err.message.toLowerCase().includes('unauthorized')) {
+        setErrorMessage({ title: "API Key Error", description: "Please check your API key settings." });
       } else {
-        setErrorMessage({
-          title: "Error",
-          description: "Failed to generate AI points. Please try again."
-        });
+        setErrorMessage({ title: "Error", description: "Failed to generate AI points." });
       }
       setShowErrorDialog(true);
     } finally {
-      setLoadingAI(prev => ({ ...prev, [index]: false }));
+      setLoadingAIMap(prev => ({ ...prev, [expId]: false }));
     }
   };
 
-  const approveSuggestion = (expIndex: number, suggestion: AISuggestion) => {
-    const updated = [...experiences];
-    updated[expIndex].description = [...updated[expIndex].description, suggestion.point];
-    onChange(updated);
+  const approveAISuggestionForExperience = (expId: string, suggestion: CardAISuggestion) => { // Use aliased type
+    const expIdx = experiences.findIndex(e => e.id === expId);
+    if (expIdx === -1) return;
+
+    const updatedExperiences = [...experiences];
+    const newPoint: DescriptionPoint = { id: uuidv4(), content: suggestion.point };
+    updatedExperiences[expIdx].description = [...updatedExperiences[expIdx].description, newPoint];
+    onChange(updatedExperiences);
     
-    // Remove the suggestion after approval
-    setAiSuggestions(prev => ({
+    setAiSuggestionsMap(prev => ({
       ...prev,
-      [expIndex]: prev[expIndex].filter(s => s.id !== suggestion.id)
+      [expId]: (prev[expId] || []).filter(s => s.id !== suggestion.id)
     }));
   };
 
-  const deleteSuggestion = (expIndex: number, suggestionId: string) => {
-    setAiSuggestions(prev => ({
+  const deleteAISuggestionForExperience = (expId: string, suggestionId: string) => {
+    setAiSuggestionsMap(prev => ({
       ...prev,
-      [expIndex]: prev[expIndex].filter(s => s.id !== suggestionId)
+      [expId]: (prev[expId] || []).filter(s => s.id !== suggestionId)
     }));
   };
 
-  const rewritePoint = async (expIndex: number, pointIndex: number) => {
-    const exp = experiences[expIndex];
-    const point = exp.description[pointIndex];
-    const customPrompt = improvementConfig[expIndex]?.[pointIndex];
+  const rewritePointForExperience = async (expId: string, pointId: string, customPrompt?: string) => {
+    const exp = experiences.find(e => e.id === expId);
+    const point = exp?.description.find(p => p.id === pointId);
+    if (!exp || !point) return;
     
-    setLoadingPointAI(prev => ({
-      ...prev,
-      [expIndex]: { ...(prev[expIndex] || {}), [pointIndex]: true }
-    }));
+    setLoadingPointAIMap(prev => ({ ...prev, [expId]: { ...(prev[expId] || {}), [pointId]: true } }));
     
     try {
-      // Get model and API key from local storage
       const MODEL_STORAGE_KEY = 'resumelm-default-model';
       const LOCAL_STORAGE_KEY = 'resumelm-api-keys';
-
       const selectedModel = localStorage.getItem(MODEL_STORAGE_KEY);
       const storedKeys = localStorage.getItem(LOCAL_STORAGE_KEY);
       let apiKeys = [];
+      try { apiKeys = storedKeys ? JSON.parse(storedKeys) : []; } catch (e) { console.error('Error parsing API keys:', e); }
 
-      try {
-        apiKeys = storedKeys ? JSON.parse(storedKeys) : [];
-      } catch (error) {
-        console.error('Error parsing API keys:', error);
-      }
+      const improvedContent = await improveWorkExperience(point.content, customPrompt, { model: selectedModel || '', apiKeys });
 
-      const improvedPoint = await improveWorkExperience(point, customPrompt, {
-        model: selectedModel || '',
-        apiKeys
-      });
-
-      // Store both original and improved versions
-      setImprovedPoints(prev => ({
+      setImprovedPointsMap(prev => ({
         ...prev,
-        [expIndex]: {
-          ...(prev[expIndex] || {}),
-          [pointIndex]: {
-            original: point,
-            improved: improvedPoint
-          }
-        }
+        [expId]: { ...(prev[expId] || {}), [pointId]: { original: point, improved: improvedContent } }
       }));
 
-      // Update the experience with the improved version
-      const updated = [...experiences];
-      updated[expIndex].description[pointIndex] = improvedPoint;
-      onChange(updated);
+      const updatedExperiences = experiences.map(e => 
+        e.id === expId ? { ...e, description: e.description.map(p => p.id === pointId ? { ...p, content: improvedContent } : p) } : e
+      );
+      onChange(updatedExperiences);
+
     } catch (error: Error | unknown) {
-      if (error instanceof Error && (
-          error.message.toLowerCase().includes('api key') || 
-          error.message.toLowerCase().includes('unauthorized') ||
-          error.message.toLowerCase().includes('invalid key') ||
-          error.message.toLowerCase().includes('invalid x-api-key'))
-      ) {
-        setErrorMessage({
-          title: "API Key Error",
-          description: "There was an issue with your API key. Please check your settings and try again."
-        });
+      const err = error as Error;
+      if (err.message.toLowerCase().includes('api key') || err.message.toLowerCase().includes('unauthorized')) {
+        setErrorMessage({ title: "API Key Error", description: "Please check your API key settings." });
       } else {
-        setErrorMessage({
-          title: "Error",
-          description: "Failed to improve point. Please try again."
-        });
+        setErrorMessage({ title: "Error", description: "Failed to improve point." });
       }
       setShowErrorDialog(true);
     } finally {
-      setLoadingPointAI(prev => ({
-        ...prev,
-        [expIndex]: { ...(prev[expIndex] || {}), [pointIndex]: false }
-      }));
+      setLoadingPointAIMap(prev => ({ ...prev, [expId]: { ...(prev[expId] || {}), [pointId]: false } }));
     }
   };
 
-  const undoImprovement = (expIndex: number, pointIndex: number) => {
-    const improvedPoint = improvedPoints[expIndex]?.[pointIndex];
-    if (improvedPoint) {
-      const updated = [...experiences];
-      updated[expIndex].description[pointIndex] = improvedPoint.original;
-      onChange(updated);
+  const undoImprovementForExperience = (expId: string, pointId: string) => {
+    const improvedPointData = improvedPointsMap[expId]?.[pointId];
+    if (improvedPointData) {
+      const updatedExperiences = experiences.map(e => 
+        e.id === expId ? { ...e, description: e.description.map(p => p.id === pointId ? improvedPointData.original : p) } : e
+      );
+      onChange(updatedExperiences);
       
-      // Remove the improvement from state
-      setImprovedPoints(prev => {
+      setImprovedPointsMap(prev => {
         const newState = { ...prev };
-        if (newState[expIndex]) {
-          delete newState[expIndex][pointIndex];
-          if (Object.keys(newState[expIndex]).length === 0) {
-            delete newState[expIndex];
-          }
+        if (newState[expId]) {
+          delete newState[expId][pointId];
+          if (Object.keys(newState[expId]).length === 0) delete newState[expId];
         }
         return newState;
       });
     }
   };
+  
+  const acceptImprovementForExperience = (expId: string, pointId: string) => {
+    setImprovedPointsMap(prev => {
+      const newState = { ...prev };
+      if (newState[expId]) {
+        delete newState[expId][pointId];
+        if (Object.keys(newState[expId]).length === 0) delete newState[expId];
+      }
+      return newState;
+    });
+  };
+
+  const handleTiptapInstanceReady = (expId: string, descId: string, editor: Editor | null) => {
+    if (!tiptapRefs.current[expId]) {
+      tiptapRefs.current[expId] = {};
+    }
+    tiptapRefs.current[expId][descId] = editor;
+  };
+  
+  // const handleSetFocusRequest = (expId: string, request: FocusRequestForPoint | null) => { // Unused
+  //   if (request) {
+  //     const expIdx = experiences.findIndex(e => e.id === expId);
+  //     if (expIdx !== -1) {
+  //       const descIdx = experiences[expIdx].description.findIndex(d => d.id === request.descriptionId);
+  //       if (descIdx !== -1) {
+  //         setFocusRequest({ experienceIndex: expIdx, descriptionIndex: descIdx });
+  //       }
+  //     }
+  //   } else {
+  //     setFocusRequest(null);
+  //   }
+  // };
+
 
   return (
     <>
@@ -300,7 +359,7 @@ export const WorkExperienceForm = memo(function WorkExperienceFormComponent({
           )}>
             <Button 
               variant="outline" 
-              onClick={addExperience}
+              onClick={addExperience} // Uses new addExperience
               className={cn(
                 "flex-1 h-9 min-w-[120px]",
                 "bg-gradient-to-r from-cyan-500/5 via-cyan-500/10 to-blue-500/5",
@@ -328,356 +387,109 @@ export const WorkExperienceForm = memo(function WorkExperienceFormComponent({
           </div>
         </div>
 
-        {experiences.map((exp, index) => (
-          <Card 
-            key={index} 
-            className={cn(
-              "relative group transition-all duration-300",
-              "bg-gradient-to-r from-cyan-500/5 via-cyan-500/10 to-blue-500/5",
-              "backdrop-blur-md border-2 border-cyan-500/30",
-              "shadow-sm"
-            )}
-          >
-            <div className="absolute -left-3 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-              <div className="bg-cyan-100/80 rounded-lg p-1.5 cursor-move shadow-sm">
-                <GripVertical className="h-4 w-4 text-cyan-600" />
-              </div>
-            </div>
-            
-            <CardContent className="p-3 sm:p-4 space-y-3 sm:space-y-4">
-              {/* Header with Delete Button */}
-              <div className="space-y-2 sm:space-y-3">
-                {/* Position Title - Full Width */}
-                <div className="flex items-start gap-2 sm:gap-3">
-                  <div className="relative flex-1">
-                    <Input
-                      value={exp.position}
-                      onChange={(e) => updateExperience(index, 'position', e.target.value)}
-                      className={cn(
-                        "text-sm font-semibold tracking-tight h-9",
-                        "bg-white/50 border-gray-200 rounded-lg",
-                        "focus:border-cyan-500/40 focus:ring-2 focus:ring-cyan-500/20",
-                        "hover:border-cyan-500/30 hover:bg-white/60 transition-colors",
-                        "placeholder:text-gray-400"
-                      )}
-                      placeholder="Position Title"
-                    />
-                    <div className="absolute -top-2 left-2 px-1 bg-white/80 text-[7px] sm:text-[9px] font-medium text-gray-500">
-                      POSITION
-                    </div>
-                  </div>
-                  <Button 
-                    variant="ghost" 
-                    size="icon"
-                    onClick={() => removeExperience(index)}
-                    className="text-gray-400 hover:text-red-500 transition-colors duration-300"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
+        <DndContext sensors={experienceSensors} collisionDetection={closestCenter} onDragEnd={handleDragEndExperiences}>
+          <SortableContext items={experiences.map(exp => exp.id)} strategy={verticalListSortingStrategy}>
+            {experiences.map((exp) => {
+              const expId = exp.id;
+              // let currentCardFocusRequest: FocusRequestForPoint | null = null; // Unused
+              // The logic to determine if a specific card's point should be focused
+              // is now implicitly handled by the parent passing the correct `focusRequest`
+              // to the specific card instance if needed, or the card itself managing internal focus.
+              // For now, the parent `focusRequest` state is translated to `currentCardFocusRequest`
+              // which is then passed to the child.
+              // However, the child `SortableExperienceCardItem` no longer accepts `focusRequest` directly.
+              // It expects `onSetFocusRequest` to be called by its children if they need to signal a focus event.
+              // The parent `WorkExperienceForm` then uses its `focusRequest` state to manage this.
+              // The `currentCardFocusRequest` variable was an intermediate step that is no longer needed here.
 
-                {/* Company and Location Row */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
-                  <div className="relative">
-                    <Input
-                      value={exp.company}
-                      onChange={(e) => updateExperience(index, 'company', e.target.value)}
-                      className={cn(
-                        "text-sm font-medium bg-white/50 border-gray-200 rounded-lg h-9",
-                        "focus:border-cyan-500/40 focus:ring-2 focus:ring-cyan-500/20",
-                        "hover:border-cyan-500/30 hover:bg-white/60 transition-colors",
-                        "placeholder:text-gray-400"
-                      )}
-                      placeholder="Company Name"
-                    />
-                    <div className="absolute -top-2 left-2 px-1 bg-white/80 text-[7px] sm:text-[9px] font-medium text-gray-500">
-                      COMPANY
-                    </div>
-                  </div>
-                  <div className="relative">
-                    <Input
-                      value={exp.location}
-                      onChange={(e) => updateExperience(index, 'location', e.target.value)}
-                      className={cn(
-                        "bg-white/50 border-gray-200 rounded-lg h-9",
-                        "focus:border-cyan-500/40 focus:ring-2 focus:ring-cyan-500/20",
-                        "hover:border-cyan-500/30 hover:bg-white/60 transition-colors",
-                        "placeholder:text-gray-400"
-                      )}
-                      placeholder="Location"
-                    />
-                    <div className="absolute -top-2 left-2 px-1 bg-white/80 text-[7px] sm:text-[9px] font-medium text-gray-500">
-                      LOCATION
-                    </div>
-                  </div>
-                </div>
+              return (
+                <SortableExperienceCardItem
+                  key={expId}
+                  experience={exp}
+                  descriptionSensors={descriptionSensors}
+                  
+                  aiSuggestions={aiSuggestionsMap[expId] || []}
+                  isLoadingAI={loadingAIMap[expId] || false}
+                  loadingPointAI={loadingPointAIMap[expId] || {}}
+                  aiConfig={aiConfigMap[expId] || { numPoints: 3, customPrompt: '' }}
+                  improvedPoints={improvedPointsMap[expId] || {}}
+                  pointImprovementPrompts={pointImprovementPromptsMap[expId] || {}}
 
-                {/* Dates Row */}
-                <div className="relative group">
-                  <Input
-                    type="text"
-                    value={exp.date}
-                    onChange={(e) => updateExperience(index, 'date', e.target.value)}
-                    className={cn(
-                      "w-full bg-white/50 border-gray-200 rounded-lg h-9",
-                      "focus:border-cyan-500/40 focus:ring-2 focus:ring-cyan-500/20",
-                      "hover:border-cyan-500/30 hover:bg-white/60 transition-colors"
-                    )}
-                    placeholder="e.g., &apos;Jan 2023 - Present&apos; or &apos;2020 - 2022&apos;"
-                  />
-                  <div className="absolute -top-2 left-2 px-1 bg-white/80 text-[7px] sm:text-[9px] font-medium text-gray-500">
-                    DATE
-                  </div>
-                  <span className="ml-2 text-[8px] sm:text-[10px] text-gray-500">Use &apos;Present&apos; in the date field for current positions</span>
-                </div>
+                  onExperienceChange={updateExperienceField}
+                  onDescriptionChange={(experienceId, descriptionId, newContent) => {
+                    const newExperiences = experiences.map(e => 
+                      e.id === experienceId ? { ...e, description: e.description.map(d => d.id === descriptionId ? {...d, content: newContent} : d) } : e
+                    );
+                    onChange(newExperiences);
+                    // Clear improvement if content changed
+                     setImprovedPointsMap(prev => {
+                        const expPoints = { ...(prev[experienceId] || {}) };
+                        if (expPoints[descriptionId]) {
+                          delete expPoints[descriptionId];
+                          return { ...prev, [experienceId]: expPoints };
+                        }
+                        return prev;
+                      });
+                  }}
+                  onDescriptionDelete={(experienceId, descriptionId) => {
+                    const newExperiences = experiences.map(e => 
+                      e.id === experienceId ? { ...e, description: e.description.filter(d => d.id !== descriptionId) } : e
+                    );
+                    onChange(newExperiences);
+                  }}
+                  onDescriptionAdd={(experienceId) => {
+                    const newExperiences = experiences.map(e => 
+                      e.id === experienceId ? { ...e, description: [...e.description, { id: uuidv4(), content: "" }] } : e
+                    );
+                    onChange(newExperiences);
+                    // Request focus for the new point
+                    const newPointIndex = newExperiences.find(e => e.id === experienceId)!.description.length - 1;
+                    const expIdx = newExperiences.findIndex(e => e.id === experienceId);
+                    setFocusRequest({experienceIndex: expIdx, descriptionIndex: newPointIndex});
+                  }}
+                  onDescriptionOrderChange={(experienceId, newDescriptionOrder) => {
+                     const newExperiences = experiences.map(e => 
+                      e.id === experienceId ? { ...e, description: newDescriptionOrder } : e
+                    );
+                    onChange(newExperiences);
+                  }}
+                  onRemoveExperience={removeExperienceById}
+                  
+                  onGenerateAIPoints={generateAIPointsForExperience}
+                  onApproveAISuggestion={approveAISuggestionForExperience}
+                  onDeleteAISuggestion={deleteAISuggestionForExperience}
+                  
+                  onRewritePoint={rewritePointForExperience}
+                  onUndoImprovement={undoImprovementForExperience}
+                  onAcceptImprovement={acceptImprovementForExperience}
 
-                {/* Description Section */}
-                <div className="space-y-3">
-                  <Label className="text-[11px] md:text-xs font-medium text-gray-600">
-                    Key Responsibilities & Achievements
-                  </Label>
-                  <div className="space-y-2 pl-0">
-                    {exp.description.map((desc, descIndex) => (
-                      <div key={descIndex} className="flex gap-1 items-start group/item">
-                        <div className="flex-1">
-                          <Tiptap
-                            content={desc} 
-                            onChange={(newContent) => {
-                              const updated = [...experiences];
-                              updated[index].description[descIndex] = newContent;
-                              onChange(updated);
+                  onSetAISuggestions={(experienceId, newSuggestions) => setAiSuggestionsMap(prev => ({ ...prev, [experienceId]: newSuggestions }))}
+                  onSetIsLoadingAI={(experienceId, isLoading) => setLoadingAIMap(prev => ({ ...prev, [experienceId]: isLoading }))}
+                  onSetLoadingPointAI={(experienceId, pointId, isLoading) => setLoadingPointAIMap(prev => ({ ...prev, [experienceId]: { ...(prev[experienceId] || {}), [pointId]: isLoading } }))}
+                  onSetAICfg={(experienceId, cfg) => setAiConfigMap(prev => ({ ...prev, [experienceId]: cfg }))}
+                  onSetImprovedPoint={(experienceId, pointId, impPoint) => setImprovedPointsMap(prev => {
+                    const expPoints = { ...(prev[experienceId] || {}) };
+                    if (impPoint === null) delete expPoints[pointId]; else expPoints[pointId] = impPoint;
+                    return { ...prev, [experienceId]: expPoints };
+                  })}
+                  onSetPointImprovementPrompt={(experienceId, pointId, prompt) => setPointImprovementPromptsMap(prev => ({ ...prev, [experienceId]: { ...(prev[experienceId] || {}), [pointId]: prompt } }))}
+                  
+                  // tiptapRefs prop is managed internally by SortableExperienceCardItem now, not passed from parent directly to it.
+                  // The parent (this component) still needs to manage the main tiptapRefs object for all cards.
+                  // The onTiptapInstanceReady callback allows the child to inform the parent.
+                  onTiptapInstanceReady={handleTiptapInstanceReady}
 
-                              if (improvedPoints[index]?.[descIndex]) {
-                                setImprovedPoints(prev => {
-                                  const newState = { ...prev };
-                                  if (newState[index]) {
-                                    delete newState[index][descIndex];
-                                    if (Object.keys(newState[index]).length === 0) {
-                                      delete newState[index];
-                                    }
-                                  }
-                                  return newState;
-                                });
-                              }
-                            }}
-                            className={cn(
-                              "min-h-[60px] text-xs md:text-sm bg-white/50 border-gray-200 rounded-lg",
-                              "focus:border-cyan-500/40 focus:ring-2 focus:ring-cyan-500/20",
-                              "hover:border-cyan-500/30 hover:bg-white/60 transition-colors",
-                              "placeholder:text-gray-400",
-                              improvedPoints[index]?.[descIndex] && [
-                                "border-purple-400",
-                                "bg-gradient-to-r from-purple-50/80 to-indigo-50/80",
-                                "shadow-[0_0_15px_-3px_rgba(168,85,247,0.2)]",
-                                "hover:bg-gradient-to-r hover:from-purple-50/90 hover:to-indigo-50/90"
-                              ]
-                            )}
-                          />
+                  // focusRequest={currentCardFocusRequest} // Removed
+                  // onSetFocusRequest={handleSetFocusRequest} // Removed as it's not a prop of SortableExperienceCardItem
 
-                          {improvedPoints[index]?.[descIndex] && (
-                            <div className="absolute -top-2.5 right-12 px-2 py-0.5 bg-purple-100 rounded-full">
-                              <span className="text-[10px] font-medium text-purple-600 flex items-center gap-1">
-                                <Sparkles className="h-3 w-3" />
-                                AI Suggestion
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                        <div className="flex flex-col gap-1">
-                          {improvedPoints[index]?.[descIndex] ? (
-                            <>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => {
-                                  // Remove the improvement state after accepting
-                                  setImprovedPoints(prev => {
-                                    const newState = { ...prev };
-                                    if (newState[index]) {
-                                      delete newState[index][descIndex];
-                                      if (Object.keys(newState[index]).length === 0) {
-                                        delete newState[index];
-                                      }
-                                    }
-                                    return newState;
-                                  });
-                                }}
-                                className={cn(
-                                  "p-0 group-hover/item:opacity-100",
-                                  "h-8 w-8 rounded-lg",
-                                  "bg-green-50/80 hover:bg-green-100/80",
-                                  "text-green-600 hover:text-green-700",
-                                  "border border-green-200/60",
-                                  "shadow-sm",
-                                  "transition-all duration-300",
-                                  "hover:scale-105 hover:shadow-md",
-                                  "hover:-translate-y-0.5"
-                                )}
-                              >
-                                <Check className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => undoImprovement(index, descIndex)}
-                                className={cn(
-                                  "p-0 group-hover/item:opacity-100",
-                                  "h-8 w-8 rounded-lg",
-                                  "bg-rose-50/80 hover:bg-rose-100/80",
-                                  "text-rose-600 hover:text-rose-700",
-                                  "border border-rose-200/60",
-                                  "shadow-sm",
-                                  "transition-all duration-300",
-                                  "hover:scale-105 hover:shadow-md",
-                                  "hover:-translate-y-0.5"
-                                )}
-                              >
-                                <X className="h-4 w-4" />
-                              </Button>
-                            </>
-                          ) : (
-                            <>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => {
-                                  const updated = [...experiences];
-                                  updated[index].description = updated[index].description.filter((_, i) => i !== descIndex);
-                                  onChange(updated);
-                                }}
-                                className="p-0 group-hover/item:opacity-100 text-gray-400 hover:text-red-500 transition-all duration-300"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-
-                              {/* AI IMPROVEMENT */}
-                              <TooltipProvider delayDuration={0}>
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      onClick={() => rewritePoint(index, descIndex)}
-                                      disabled={loadingPointAI[index]?.[descIndex]}
-                                      className={cn(
-                                        "p-0 group-hover/item:opacity-100",
-                                        "h-8 w-8 rounded-lg",
-                                        "bg-purple-50/80 hover:bg-purple-100/80",
-                                        "text-purple-600 hover:text-purple-700",
-                                        "border border-purple-200/60",
-                                        "shadow-sm",
-                                        "transition-all duration-300",
-                                        "hover:scale-105 hover:shadow-md",
-                                        "hover:-translate-y-0.5"
-                                      )}
-                                    >
-                                      {loadingPointAI[index]?.[descIndex] ? (
-                                        <Loader2 className="h-4 w-4 animate-spin" />
-                                      ) : (
-                                        <Sparkles className="h-4 w-4" />
-                                      )}
-                                    </Button>
-                                  </TooltipTrigger>
-                                  <TooltipContent 
-                                    side="bottom" 
-                                    align="start"
-                                    sideOffset={2}
-                                    className={cn(
-                                      "w-72 p-3.5",
-                                      "bg-purple-50",
-                                      "border-2 border-purple-300",
-                                      "shadow-lg shadow-purple-100/50",
-                                      "rounded-lg"
-                                    )}
-                                  >
-                                    <AIImprovementPrompt
-                                      value={improvementConfig[index]?.[descIndex] || ''}
-                                      onChange={(value) => setImprovementConfig(prev => ({
-                                        ...prev,
-                                        [index]: {
-                                          ...(prev[index] || {}),
-                                          [descIndex]: value
-                                        }
-                                      }))}
-                                      onSubmit={() => rewritePoint(index, descIndex)}
-                                      isLoading={loadingPointAI[index]?.[descIndex]}
-                                    />
-                                  </TooltipContent>
-                                </Tooltip>
-                              </TooltipProvider>
-                            </>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                    
-                    {/* AI Suggestions */}
-                    <AISuggestions
-                      suggestions={aiSuggestions[index] || []}
-                      onApprove={(suggestion) => approveSuggestion(index, suggestion)}
-                      onDelete={(suggestionId) => deleteSuggestion(index, suggestionId)}
-                    />
-
-                    {exp.description.length === 0 && !aiSuggestions[index]?.length && (
-                      <div className="text-[11px] md:text-xs text-gray-500 italic px-4 py-3 bg-gray-50/50 rounded-lg">
-                        Add points to describe your responsibilities and achievements
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 w-full">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        const updated = [...experiences];
-                        updated[index].description = [...updated[index].description, ""];
-                        onChange(updated);
-                      }}
-                      className={cn(
-                        "flex-1 text-cyan-600 hover:text-cyan-700 transition-colors text-[10px] sm:text-xs",
-                        "border-cyan-200 hover:border-cyan-300 hover:bg-cyan-50/50"
-                      )}
-                    >
-                      <Plus className="h-4 w-4 mr-1" />
-                      Add Point
-                    </Button>
-
-
-                    {/* AI GENERATION SETTINGS */}
-                    <AIGenerationSettingsTooltip
-                      index={index}
-                      loadingAI={loadingAI[index]}
-                      generateAIPoints={generateAIPoints}
-                      aiConfig={aiConfig[index] || { numPoints: 3, customPrompt: '' }}
-                      onNumPointsChange={(value) => setAiConfig(prev => ({
-                        ...prev,
-                        [index]: { ...prev[index], numPoints: value }
-                      }))}
-                      onCustomPromptChange={(value) => setAiConfig(prev => ({
-                        ...prev,
-                        [index]: { ...prev[index], customPrompt: value }
-                      }))}
-                      colorClass={{
-                        button: "text-purple-600",
-                        border: "border-purple-200",
-                        hoverBorder: "hover:border-purple-300",
-                        hoverBg: "hover:bg-purple-50/50",
-                        tooltipBg: "bg-purple-50",
-                        tooltipBorder: "border-2 border-purple-300",
-                        tooltipShadow: "shadow-lg shadow-purple-100/50",
-                        text: "text-purple-600",
-                        hoverText: "hover:text-purple-700"
-                      }}
-                    />
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+                  // onShowErrorDialog={(title: string, description: string) => { setErrorMessage({ title, description }); setShowErrorDialog(true); }} // Removed
+                />
+              );
+            })}
+          </SortableContext>
+        </DndContext>
       </div>
       
-      {/* Add Error Alert Dialog at the end */}
       <ApiErrorDialog
         open={showErrorDialog}
         onOpenChange={setShowErrorDialog}
@@ -693,4 +505,4 @@ export const WorkExperienceForm = memo(function WorkExperienceFormComponent({
       />
     </>
   );
-}, areWorkExperiencePropsEqual); 
+}, areWorkExperiencePropsEqual);

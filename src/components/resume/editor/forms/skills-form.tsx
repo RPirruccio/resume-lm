@@ -1,14 +1,32 @@
 'use client';
 
-import { Skill, Profile } from "@/lib/types";
-import { Card, CardContent } from "@/components/ui/card";
+import { Skill, Profile, DescriptionPoint } from "@/lib/types"; // Added DescriptionPoint
+// Card, CardContent, Input, Badge are now in SortableSkillCategoryCard or SortableSkillItem
+// import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Plus, Trash2 } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+// import { Input } from "@/components/ui/input";
+import { Plus } from "lucide-react"; // Trash2 is in SortableSkillCategoryCard
+// import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { ImportFromProfileDialog } from "../../management/dialogs/import-from-profile-dialog";
-import { useState, KeyboardEvent } from 'react';
+import { useCallback } from 'react'; // Removed useState and KeyboardEvent
+import { v4 as uuidv4 } from 'uuid'; // For generating IDs
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  verticalListSortingStrategy,
+  sortableKeyboardCoordinates,
+} from '@dnd-kit/sortable';
+import { SortableSkillCategoryCard } from "./components/sortable-skill-category-card";
 
 interface SkillsFormProps {
   skills: Skill[];
@@ -21,64 +39,84 @@ export function SkillsForm({
   onChange,
   profile
 }: SkillsFormProps) {
-  const [newSkills, setNewSkills] = useState<{ [key: number]: string }>({});
+  // newSkills state is managed within each SortableSkillCategoryCard now
+
+  const categorySensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+  const itemSensors = useSensors( // To be passed to each category card for its items
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+
 
   const addSkillCategory = () => {
     onChange([{
+      id: uuidv4(), // Add ID
       category: "",
       items: []
     }, ...skills]);
   };
 
-  const updateSkillCategory = (index: number, field: keyof Skill, value: string | string[]) => {
-    const updated = [...skills];
-    updated[index] = { ...updated[index], [field]: value };
-    onChange(updated);
-  };
+  const handleCategoryNameChange = useCallback((categoryId: string, newName: string) => {
+    onChange(
+      skills.map(sc => sc.id === categoryId ? { ...sc, category: newName } : sc)
+    );
+  }, [skills, onChange]);
 
-  const removeSkillCategory = (index: number) => {
-    onChange(skills.filter((_, i) => i !== index));
-  };
+  const handleRemoveCategory = useCallback((categoryId: string) => {
+    onChange(skills.filter(sc => sc.id !== categoryId));
+  }, [skills, onChange]);
 
-  const addSkill = (categoryIndex: number) => {
-    const skillToAdd = newSkills[categoryIndex]?.trim();
-    if (!skillToAdd) return;
+  const handleSkillItemAdd = useCallback((categoryId: string, newItemContent: string) => {
+    onChange(
+      skills.map(sc => 
+        sc.id === categoryId 
+        ? { ...sc, items: [...sc.items, { id: uuidv4(), content: newItemContent }] } 
+        : sc
+      )
+    );
+  }, [skills, onChange]);
+  
+  const handleSkillItemRemove = useCallback((categoryId: string, itemIndex: number) => {
+    onChange(
+      skills.map(sc => 
+        sc.id === categoryId 
+        ? { ...sc, items: sc.items.filter((_, idx) => idx !== itemIndex) } 
+        : sc
+      )
+    );
+  }, [skills, onChange]);
 
-    const updated = [...skills];
-    const currentItems = updated[categoryIndex].items || [];
-    if (!currentItems.includes(skillToAdd)) {
-      updated[categoryIndex] = {
-        ...updated[categoryIndex],
-        items: [...currentItems, skillToAdd]
-      };
-      onChange(updated);
-    }
-    setNewSkills({ ...newSkills, [categoryIndex]: '' });
-  };
+  const handleSkillItemOrderChange = useCallback((categoryId: string, newItems: DescriptionPoint[]) => { // Changed string[] to DescriptionPoint[]
+    onChange(
+      skills.map(sc => sc.id === categoryId ? { ...sc, items: newItems } : sc)
+    );
+  }, [skills, onChange]);
 
-  const handleKeyPress = (e: KeyboardEvent<HTMLInputElement>, categoryIndex: number) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      addSkill(categoryIndex);
-    }
-  };
-
-  const removeSkill = (categoryIndex: number, skillIndex: number) => {
-    const updated = skills.map((skill, idx) => {
-      if (idx === categoryIndex) {
-        return {
-          ...skill,
-          items: skill.items.filter((_, i) => i !== skillIndex)
-        };
-      }
-      return skill;
-    });
-    onChange(updated);
-  };
 
   const handleImportFromProfile = (importedSkills: Skill[]) => {
-    onChange([...importedSkills, ...skills]);
+    const newSkillsWithIds = importedSkills.map(s => ({
+      ...s,
+      id: s.id || uuidv4(),
+      items: s.items.map(item => 
+        typeof item === 'string' ? { id: uuidv4(), content: item } : item
+      ) as DescriptionPoint[] // Ensure items are DescriptionPoint[]
+    }));
+    onChange([...newSkillsWithIds, ...skills]);
   };
+  
+  const handleCategoryDragEnd = useCallback((event: DragEndEvent) => {
+    const { active, over } = event;
+    if (over && active.id !== over.id) {
+      const oldIndex = skills.findIndex((s) => s.id === active.id);
+      const newIndex = skills.findIndex((s) => s.id === over.id);
+      if (oldIndex !== -1 && newIndex !== -1) {
+        onChange(arrayMove(skills, oldIndex, newIndex));
+      }
+    }
+  }, [skills, onChange]);
 
   return (
     <div className="space-y-2 sm:space-y-3">
@@ -121,102 +159,26 @@ export function SkillsForm({
         </div>
       </div>
 
-      {skills.map((skill, index) => (
-        <Card 
-          key={index} 
-          className={cn(
-            "relative group transition-all duration-300",
-            "bg-gradient-to-r from-rose-500/5 via-rose-500/10 to-pink-500/5",
-            "backdrop-blur-md border-2 border-rose-500/30",
-            "shadow-sm"
-          )}
-        >
-          <CardContent className="p-3 sm:p-4 space-y-3 sm:space-y-4">
-            <div className="space-y-2 sm:space-y-3">
-              {/* Category Name and Delete Button Row */}
-              <div className="flex items-center justify-between gap-2 sm:gap-3">
-                <div className="relative group flex-1">
-                  <Input
-                    value={skill.category}
-                    onChange={(e) => updateSkillCategory(index, 'category', e.target.value)}
-                    className={cn(
-                      "text-sm font-medium h-9",
-                      "bg-white/50 border-gray-200 rounded-lg",
-                      "focus:border-rose-500/40 focus:ring-2 focus:ring-rose-500/20",
-                      "hover:border-rose-500/30 hover:bg-white/60 transition-colors",
-                      "placeholder:text-gray-400"
-                    )}
-                    placeholder="Category Name"
-                  />
-                  <div className="absolute -top-2 left-2 px-1 bg-white/80 text-[7px] sm:text-[9px] font-medium text-rose-700">
-                    CATEGORY
-                  </div>
-                </div>
-                <Button 
-                  variant="ghost" 
-                  size="icon"
-                  onClick={() => removeSkillCategory(index)}
-                  className="text-gray-400 hover:text-red-500 transition-colors duration-300"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
-
-              {/* Skills Display */}
-              <div className="space-y-2 sm:space-y-3">
-                <div className="flex flex-wrap gap-1.5">
-                  {skill.items.map((item, skillIndex) => (
-                    <Badge
-                      key={skillIndex}
-                      variant="secondary"
-                      className={cn(
-                        "bg-white/60 hover:bg-white/80 text-rose-700 border border-rose-200 py-0.5",
-                        "transition-all duration-300 group/badge cursor-default text-[10px] sm:text-xs"
-                      )}
-                    >
-                      {item}
-                      <button
-                        onClick={() => removeSkill(index, skillIndex)}
-                        className="ml-1.5 hover:text-red-500 opacity-50 hover:opacity-100 transition-opacity"
-                      >
-                        ×
-                      </button>
-                    </Badge>
-                  ))}
-                </div>
-
-                {/* New Skill Input */}
-                <div className="relative group flex gap-2">
-                  <Input
-                    value={newSkills[index] || ''}
-                    onChange={(e) => setNewSkills({ ...newSkills, [index]: e.target.value })}
-                    onKeyPress={(e) => handleKeyPress(e, index)}
-                    className={cn(
-                      "h-9 bg-white/50 border-gray-200 rounded-lg",
-                      "focus:border-rose-500/40 focus:ring-2 focus:ring-rose-500/20",
-                      "hover:border-rose-500/30 hover:bg-white/60 transition-colors",
-                      "placeholder:text-gray-400",
-                      "text-[10px] sm:text-xs"
-                    )}
-                    placeholder="Type a skill and press Enter or click +"
-                  />
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => addSkill(index)}
-                    className="h-9 px-2 bg-white/50 hover:bg-white/60"
-                  >
-                    <Plus className="h-4 w-4" />
-                  </Button>
-                  <div className="absolute -top-2 left-2 px-1 bg-white/80 text-[7px] sm:text-[9px] font-medium text-rose-700">
-                    ADD SKILL
-                  </div>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      ))}
+      <DndContext
+        sensors={categorySensors}
+        collisionDetection={closestCenter}
+        onDragEnd={handleCategoryDragEnd}
+      >
+        <SortableContext items={skills.map(s => s.id)} strategy={verticalListSortingStrategy}>
+          {skills.map((skillCategory) => (
+            <SortableSkillCategoryCard
+              key={skillCategory.id}
+              skillCategory={skillCategory}
+              itemSensors={itemSensors} // Pass down sensors for nested DND
+              onCategoryNameChange={handleCategoryNameChange}
+              onRemoveCategory={handleRemoveCategory}
+              onSkillItemAdd={handleSkillItemAdd}
+              onSkillItemRemove={handleSkillItemRemove}
+              onSkillItemOrderChange={handleSkillItemOrderChange}
+            />
+          ))}
+        </SortableContext>
+      </DndContext>
     </div>
   );
-} 
+}

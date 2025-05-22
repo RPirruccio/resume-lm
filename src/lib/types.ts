@@ -1,13 +1,20 @@
+export interface DescriptionPoint {
+  id: string;
+  content: string;
+}
+
 export interface WorkExperience {
+  id: string;
   company: string;
   position: string;
   location?: string;
   date: string;
-  description: string[];
+  description: DescriptionPoint[];
   technologies?: string[];
 }
 
 export interface Education {
+  id: string;
   school: string;
   degree: string;
   field: string;
@@ -18,8 +25,9 @@ export interface Education {
 }
 
 export interface Project {
+  id: string;
   name: string;
-  description: string[];
+  description: DescriptionPoint[];
   date?: string;
   technologies?: string[];
   url?: string;
@@ -27,11 +35,22 @@ export interface Project {
 }
 
 export interface Skill {
+  id: string; // Added ID for DND
   category: string;
-  items: string[];
+  items: DescriptionPoint[]; // Changed from string[] to DescriptionPoint[]
 }
 
-
+export type SectionKey = 
+  | 'basic_info'
+  | 'work_experience'
+  | 'projects'
+  | 'education'
+  | 'skills'
+  | 'settings'
+  | 'cover-letter'
+  | 'resume-score'
+  | 'professional_summary' // Added as it's a common section, though not in current DEFAULT_SECTION_ORDER
+  | 'certifications'; // Added as it's a common section, though not in current DEFAULT_SECTION_ORDER
 
 
 export interface Job {
@@ -79,10 +98,11 @@ export interface Resume {
   created_at: string;
   updated_at: string;
   document_settings?: DocumentSettings;
-  section_order?: string[];
+  section_order?: SectionKey[];
   section_configs?: {
     [key: string]: { visible: boolean };
   };
+  professional_summary?: string | null; // Added for the new summary section
   has_cover_letter: boolean;
   cover_letter?: Record<string, unknown> | null;
 }
@@ -121,6 +141,12 @@ export interface DocumentSettings {
   education_margin_bottom: number;
   education_margin_horizontal: number;
   education_item_spacing: number;
+
+  // Summary Section (Optional settings)
+  summary_show_header?: boolean;
+  summary_margin_top?: number;
+  summary_margin_bottom?: number;
+  summary_margin_horizontal?: number;
 
   show_ubc_footer?: boolean;
   footer_width?: number; // Percentage width of the footer

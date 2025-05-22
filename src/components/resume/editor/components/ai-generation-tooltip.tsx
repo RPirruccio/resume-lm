@@ -7,9 +7,9 @@ import { cn } from "@/lib/utils";
 import { AIGenerationSettings } from "../../shared/ai-generation-settings";
 
 interface AIGenerationTooltipProps {
-  index: number;
+  // index: number; // Index is no longer needed as generateAIPoints will be pre-configured
   loadingAI: boolean;
-  generateAIPoints: (index: number) => void;
+  generateAIPoints: () => void; // Changed to no longer take index
   aiConfig: { numPoints: number; customPrompt: string };
   onNumPointsChange: (value: number) => void;
   onCustomPromptChange: (value: string) => void;
@@ -27,7 +27,7 @@ interface AIGenerationTooltipProps {
 }
 
 export function AIGenerationSettingsTooltip({
-  index,
+  // index, // Removed index
   loadingAI,
   generateAIPoints,
   aiConfig,
@@ -42,7 +42,7 @@ export function AIGenerationSettingsTooltip({
           <Button
             variant="outline"
             size="sm"
-            onClick={() => generateAIPoints(index)}
+            onClick={generateAIPoints} // Call directly
             disabled={loadingAI}
             className={cn(
               "flex-1 transition-colors text-[10px] sm:text-xs",
@@ -82,4 +82,4 @@ export function AIGenerationSettingsTooltip({
       </Tooltip>
     </TooltipProvider>
   );
-} 
+}

@@ -561,13 +561,20 @@ export const TAILORED_RESUME_GENERATOR_SYSTEM_MESSAGE: ChatCompletionMessagePara
 
 **Core Objectives & Formatting Requirements:**
 
-1.  **Integrate Job-Specific Terminology & Reorder Content:**
+1.  **Generate Professional Summary:**
+    *   Based on the entirety of the provided resume content (work experience, skills, projects, education) and the target job description, craft a concise and compelling professional summary.
+    *   This summary should be approximately 3-5 sentences long.
+    *   It must highlight the candidate's most relevant experiences, key skills, and significant achievements as they pertain to the specific job role.
+    *   The tone should be professional and confident.
+    *   Ensure the summary is tailored to the job description, using relevant keywords where appropriate.
+
+2.  **Integrate Job-Specific Terminology & Reorder Content:**
     *   Replace generic descriptions with precise, job-specific technical terms drawn from the job description.
     *   Reorder or emphasize sections and bullet points to prioritize experiences that most closely match the role's requirements.
     *   Use strong, active language that mirrors the job description's vocabulary and focus.
     *   Ensure all modifications are strictly based on the resume's original data—never invent new tools, versions, or experiences.
 
-2.  **Narrative Achievement Storytelling for Bullet Points (Work Experience & Projects):**
+3.  **Narrative Achievement Storytelling for Bullet Points (Work Experience & Projects):**
     *   Each bullet point MUST be a concise, professional narrative detailing a specific achievement or responsibility.
     *   **CRITICAL: ABSOLUTELY DO NOT include the literal words 'Situation:', 'Task:', 'Action:', or 'Result:' as prefixes or labels within the bullet points.** The STAR components should be seamlessly integrated into the narrative.
     *   The story should naturally include:
@@ -581,15 +588,15 @@ export const TAILORED_RESUME_GENERATOR_SYSTEM_MESSAGE: ChatCompletionMessagePara
     *   Example of a CORRECT single bullet point (Implicit STAR, NO LABELS):
         "To address declining user engagement on the main dashboard, I led a team of 3 designers to redesign the user interface, focusing on improving navigation and data visibility. We implemented a new component-based architecture using **React** and **Figma** prototypes and incorporated user feedback through A/B testing, which resulted in a **25%** increase in user engagement, a **15%** reduction in bounce rate, and positive feedback in **90%** of user surveys."
 
-    3.  **Handling Work Experience Relevance:**
+    4.  **Handling Work Experience Relevance:**
         *   You MUST process and generate descriptions for EVERY work experience item provided.
         *   For experiences highly relevant to the target role: Focus on hard skills, technical achievements, and direct contributions matching the job's requirements. Aim for 3-4 narrative bullet points.
         *   For experiences less directly relevant: Focus on highlighting transferable soft skills (e.g., problem-solving, communication, leadership, adaptability, teamwork, critical thinking). Frame these soft skills using the narrative achievement storytelling approach, connecting them to the general professional demands of the target role. **Aim for 1-2 concise bullet points each for these less relevant experiences.** Brevity is key here to save space while still extracting and showcasing value. Ensure these concise points still implicitly cover the STAR elements in a natural, narrative way.
 
-4.  **Handling Project Relevance (Initial Approach):**
+5.  **Handling Project Relevance (Initial Approach):**
     *   Process and generate descriptions for EVERY project item provided, using the narrative achievement storytelling approach. (User-configurable filtering will be handled externally).
 
-5.  **Enhanced Technical Detailing & Selective Bolding:**
+6.  **Enhanced Technical Detailing & Selective Bolding:**
     *   Convert simple technology lists (e.g., in a dedicated 'Technologies Used' field for a project) into detailed, hierarchical representations that include versions and relevant frameworks (e.g., "Python → Python 3.10 (NumPy, PyTorch 2.0, FastAPI)"). **Items in such dedicated technology lists for projects SHOULD be bolded using **technology** syntax.**
     *   Enrich work experience and project descriptions (the narrative bullet points) with architectural context and measurable performance metrics.
     *   **Within the narrative descriptions for work experience and projects, use bold formatting VERY SPARINGLY.** Only bold the following:
@@ -599,7 +606,7 @@ export const TAILORED_RESUME_GENERATOR_SYSTEM_MESSAGE: ChatCompletionMessagePara
     *   **DO NOT bold individual skill items listed in the 'Skills' section of the resume.** (The AI should generate plain text for skill items; any display formatting like bolding skill categories would be a UI concern).
     *   Avoid bolding general action verbs or common keywords within descriptions unless they are part of a highly specific, unique, and impactful named concept directly from the job description.
 
-6.  **Skills Section Optimization & Relevance Matching:**
+7.  **Skills Section Optimization & Relevance Matching:**
     *   **Analyze Job Description Keywords:** Thoroughly scan the target job description to identify all explicitly mentioned or strongly implied skills, technologies, tools, and methodologies.
     *   **Prioritize and Include Direct Matches:** From the candidate's full list of skills provided in the input resume, you MUST include all skills that are direct matches or very close synonyms to those identified in the job description.
     *   **Selectively Include Highly Relevant Supporting Skills:** From the remaining candidate skills, include only those that are highly relevant and complementary to the job requirements. For instance, if "Python backend development" is key, and the candidate lists "Flask" and "Django", these should be included. However, if the candidate also lists "Java" and it's not relevant to the Python role, "Java" should be omitted.
@@ -608,7 +615,7 @@ export const TAILORED_RESUME_GENERATOR_SYSTEM_MESSAGE: ChatCompletionMessagePara
     *   **Order of Importance within Categories (Subtle Prioritization):** Within each skill category, subtly list skills that are more directly relevant to the job description earlier in the list, if a clear distinction in relevance exists.
     *   **No Bolding of Individual Skills:** Reiterate that individual skill items listed in the 'Skills' section of the resume should NOT be bolded. (Display formatting is a UI concern).
 
-7.  **Strict Transformation Constraints:**
+8.  **Strict Transformation Constraints:**
     *   Preserve the original employment chronology and all factual details.
     *   Maintain a 1:1 mapping between the job description requirements and the resume content where possible.
     *   If a direct match is missing, map the resume content to a relevant job description concept.

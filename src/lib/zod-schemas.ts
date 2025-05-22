@@ -194,13 +194,34 @@ export const simplifiedJobSchema = z.object({
     salary_range: z.string().nullable().optional(),
     keywords: z.array(z.string()).default([]).optional(),
     work_location: z.preprocess(
-      (val) => val === null || val === '' ? 'in_person' : val,
-      z.enum(['remote', 'in_person', 'hybrid']).nullable().optional()
-    ),
+      (val) => {
+        let processedVal = val;
+        if (Array.isArray(processedVal) && processedVal.length > 0 && typeof processedVal[0] === 'string') {
+          processedVal = processedVal[0];
+        }
+        // Ensure processedVal is a string before trimming and checking if empty
+        if (typeof processedVal === 'string') {
+          if (processedVal.trim() === '') return null; // Handle empty string by returning null
+          return processedVal; // Return the non-empty string for further processing
+        }
+        return null; // Return null for other unexpected types or if val was initially null/undefined
+      },
+      z.string().transform(str => str.toLowerCase()).pipe(z.enum(['remote', 'in_person', 'hybrid']))
+    ).nullable().optional(),
     employment_type: z.preprocess(
-      (val) => val === null || val === '' ? 'full_time' : val,
-      z.enum(['full_time', 'part_time', 'co_op', 'internship', 'contract'])
-    ).optional(),
+      (val) => {
+        if (typeof val === 'string') {
+          if (val.trim() === '') return null; // Handle empty string by returning null
+          const lowerVal = val.toLowerCase();
+          if (lowerVal === 'contractor') {
+            return 'contract';
+          }
+          return lowerVal;
+        }
+        return null; // Return null for other unexpected types or if val was initially null/undefined
+      },
+      z.string().pipe(z.enum(['full_time', 'part_time', 'co_op', 'internship', 'contract']))
+    ).nullable().optional(), // Added nullable here to match the behavior of returning null for empty strings
     is_active: z.boolean().default(true).optional(),
   });
   
@@ -212,8 +233,8 @@ export const simplifiedResumeSchema = z.object({
     education: z.array(educationSchema).describe("Array of education objects."),
     skills: z.array(skillSchema).describe("Array of skill objects, highlighting relevant skills for the target role."),
     projects: z.array(projectSchema).describe("Array of project objects, showcasing relevant experience for the target role."),
-    // professional_summary: z.string().optional().describe("A brief professional summary tailored for the target role."), // Consider adding if needed
-  }).describe("A structured representation of a resume tailored for a specific job role, focusing on work experience, education, skills, and projects relevant to that role.");
+    professional_summary: z.string().optional().describe("A brief professional summary (around 3-5 sentences) tailored for the target role, highlighting key experiences and skills relevant to the job description."),
+  }).describe("A structured representation of a resume tailored for a specific job role, focusing on work experience, education, skills, projects, and a professional summary relevant to that role.");
 
 // Add type inference helper
 export type Job = {

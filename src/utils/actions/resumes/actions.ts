@@ -3,8 +3,9 @@
 import { createClient } from "@/utils/supabase/server";
 import { Profile, Resume, WorkExperience, Education, Skill, Project } from "@/lib/types";
 import { revalidatePath } from 'next/cache';
-import { z } from 'zod';
-import { simplifiedResumeSchema } from "@/lib/zod-schemas";
+// import { z } from 'zod'; // Removed unused import
+// import { simplifiedResumeSchema } from "@/lib/zod-schemas"; // Removed unused import
+import { ProcessedAIContent } from "@/utils/data-transformation"; // Adjusted import path
 import { AIConfig } from "@/utils/ai-tools";
 import { generateObject } from "ai";
 import { initializeAIClient } from "@/utils/ai-tools";
@@ -263,7 +264,7 @@ export async function createTailoredResume(
   jobId: string | null,
   jobTitle: string,
   companyName: string,
-  tailoredContent: z.infer<typeof simplifiedResumeSchema>
+  tailoredContent: ProcessedAIContent // Changed type here
 ) {
   console.log('[createTailoredResume] Received jobId:', jobId);
   console.log('[createTailoredResume] baseResume ID:', baseResume?.id);

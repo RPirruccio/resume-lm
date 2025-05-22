@@ -1,15 +1,30 @@
 'use client';
 
 import { Education, Profile } from "@/lib/types";
-import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+// Card, CardContent, Input, Label, Tiptap are now in SortableEducationCard
 import { Button } from "@/components/ui/button";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus } from "lucide-react"; // Trash2 is in SortableEducationCard
 import { ImportFromProfileDialog } from "../../management/dialogs/import-from-profile-dialog";
-import { memo } from 'react';
+import { memo, useCallback } from 'react'; // Added useCallback
 import { cn } from "@/lib/utils";
-import Tiptap from "@/components/ui/tiptap";
+import { v4 as uuidv4 } from 'uuid'; // For generating IDs
+
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  verticalListSortingStrategy,
+  sortableKeyboardCoordinates,
+} from '@dnd-kit/sortable';
+import { SortableEducationCard } from "./components/sortable-education-card"; // Import the new component
 
 
 interface EducationFormProps {
@@ -33,8 +48,15 @@ export const EducationForm = memo(function EducationFormComponent({
   onChange,
   profile
 }: EducationFormProps) {
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+
   const addEducation = () => {
     onChange([{
+      id: uuidv4(), // Add unique ID
       school: "",
       degree: "",
       field: "",
@@ -45,19 +67,37 @@ export const EducationForm = memo(function EducationFormComponent({
     }, ...education]);
   };
 
-  const updateEducation = (index: number, field: keyof Education, value: Education[keyof Education]) => {
-    const updated = [...education];
-    updated[index] = { ...updated[index], [field]: value };
-    onChange(updated);
-  };
+  const handleEducationChange = useCallback((educationId: string, field: keyof Education, value: string | string[] | number) => {
+    onChange(
+      education.map(edu => 
+        edu.id === educationId ? { ...edu, [field]: value } : edu
+      )
+    );
+  }, [education, onChange]);
 
-  const removeEducation = (index: number) => {
-    onChange(education.filter((_, i) => i !== index));
-  };
-
+  const handleRemoveEducation = useCallback((educationId: string) => {
+    onChange(education.filter(edu => edu.id !== educationId));
+  }, [education, onChange]);
+  
   const handleImportFromProfile = (importedEducation: Education[]) => {
-    onChange([...importedEducation, ...education]);
+    const newEducationWithIds = importedEducation.map(edu => ({
+      ...edu,
+      id: edu.id || uuidv4(), // Ensure imported items have IDs
+      // If achievements need to be DescriptionPoint[], transform here
+    }));
+    onChange([...newEducationWithIds, ...education]);
   };
+
+  const handleDragEnd = useCallback((event: DragEndEvent) => {
+    const { active, over } = event;
+    if (over && active.id !== over.id) {
+      const oldIndex = education.findIndex((e) => e.id === active.id);
+      const newIndex = education.findIndex((e) => e.id === over.id);
+      if (oldIndex !== -1 && newIndex !== -1) {
+        onChange(arrayMove(education, oldIndex, newIndex));
+      }
+    }
+  }, [education, onChange]);
 
   return (
     <div className="space-y-2 sm:space-y-3">
@@ -99,181 +139,23 @@ export const EducationForm = memo(function EducationFormComponent({
           />
         </div>
       </div>
-
-      {education.map((edu, index) => (
-        <Card 
-          key={index} 
-          className={cn(
-            "relative group transition-all duration-300",
-            "bg-gradient-to-r from-indigo-500/5 via-indigo-500/10 to-blue-500/5",
-            "backdrop-blur-md border-2 border-indigo-500/30",
-            "shadow-sm"
-          )}
-        >
-          <CardContent className="p-3 sm:p-4 space-y-3 sm:space-y-4">
-            <div className="space-y-2 sm:space-y-3">
-              {/* School Name and Delete Button Row */}
-              <div className="flex items-center justify-between gap-2 sm:gap-3">
-                <div className="relative group flex-1 min-w-0">
-                  <Input
-                    value={edu.school}
-                    onChange={(e) => updateEducation(index, 'school', e.target.value)}
-                    className={cn(
-                      "text-sm font-semibold h-9",
-                      "bg-white/50 border-gray-200 rounded-lg",
-                      "focus:border-indigo-500/40 focus:ring-2 focus:ring-indigo-500/20",
-                      "hover:border-indigo-500/30 hover:bg-white/60 transition-colors",
-                      "placeholder:text-gray-400"
-                    )}
-                    placeholder="Institution Name"
-                  />
-                  <div className="absolute -top-2 left-2 px-1 bg-white/80 text-[7px] sm:text-[9px] font-medium text-indigo-700">
-                    INSTITUTION
-                  </div>
-                </div>
-                <Button 
-                  variant="ghost" 
-                  size="icon"
-                  onClick={() => removeEducation(index)}
-                  className="text-gray-400 hover:text-red-500 transition-colors duration-300"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
-
-              {/* Location */}
-              <div className="relative group">
-                <Input
-                  value={edu.location}
-                  onChange={(e) => updateEducation(index, 'location', e.target.value)}
-                  className={cn(
-                    "h-9 bg-white/50 border-gray-200 rounded-lg",
-                    "focus:border-indigo-500/40 focus:ring-2 focus:ring-indigo-500/20",
-                    "hover:border-indigo-500/30 hover:bg-white/60 transition-colors",
-                    "placeholder:text-gray-400",
-                    "text-[10px] sm:text-xs"
-                  )}
-                  placeholder="City, Country"
-                />
-                <div className="absolute -top-2 left-2 px-1 bg-white/80 text-[7px] sm:text-[9px] font-medium text-indigo-700">
-                  LOCATION
-                </div>
-              </div>
-
-              {/* Degree and Field Row */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
-                <div className="relative group">
-                  <Input
-                    value={edu.degree}
-                    onChange={(e) => updateEducation(index, 'degree', e.target.value)}
-                    className={cn(
-                      "h-9 bg-white/50 border-gray-200 rounded-lg",
-                      "focus:border-indigo-500/40 focus:ring-2 focus:ring-indigo-500/20",
-                      "hover:border-indigo-500/30 hover:bg-white/60 transition-colors",
-                      "placeholder:text-gray-400",
-                      "text-[10px] sm:text-xs"
-                    )}
-                    placeholder="Bachelor's, Master's, etc."
-                  />
-                  <div className="absolute -top-2 left-2 px-1 bg-white/80 text-[7px] sm:text-[9px] font-medium text-indigo-700">
-                    DEGREE
-                  </div>
-                </div>
-                <div className="relative group">
-                  <Input
-                    value={edu.field}
-                    onChange={(e) => updateEducation(index, 'field', e.target.value)}
-                    className={cn(
-                      "h-9 bg-white/50 border-gray-200 rounded-lg",
-                      "focus:border-indigo-500/40 focus:ring-2 focus:ring-indigo-500/20",
-                      "hover:border-indigo-500/30 hover:bg-white/60 transition-colors",
-                      "placeholder:text-gray-400",
-                      "text-[10px] sm:text-xs"
-                    )}
-                    placeholder="Field of Study"
-                  />
-                  <div className="absolute -top-2 left-2 px-1 bg-white/80 text-[7px] sm:text-[9px] font-medium text-indigo-700">
-                    FIELD OF STUDY
-                  </div>
-                </div>
-              </div>
-
-              {/* Dates Row */}
-              <div className="relative group">
-                <Input
-                  type="text"
-                  value={edu.date}
-                  onChange={(e) => updateEducation(index, 'date', e.target.value)}
-                  className={cn(
-                    "w-full h-9 bg-white/50 border-gray-200 rounded-lg",
-                    "focus:border-indigo-500/40 focus:ring-2 focus:ring-indigo-500/20",
-                    "hover:border-indigo-500/30 hover:bg-white/60 transition-colors",
-                    "text-[10px] sm:text-xs"
-                  )}
-                  placeholder="e.g., &apos;2019 - 2023&apos; or &apos;2020 - Present&apos;"
-                />
-                <div className="absolute -top-2 left-2 px-1 bg-white/80 text-[7px] sm:text-[9px] font-medium text-indigo-700">
-                  DATE
-                </div>
-              </div>
-
-              {/* Current Status Note */}
-              <div className="flex items-center space-x-2 -mt-1">
-                <span className="text-[8px] sm:text-[10px] text-gray-500">Use &apos;Present&apos; in the date field for current education</span>
-              </div>
-
-              {/* GPA */}
-              <div className="relative group w-full sm:w-1/2 lg:w-1/3">
-                <Input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  max="4.0"
-                  value={edu.gpa || ''}
-                  onChange={(e) => updateEducation(index, 'gpa', e.target.value ? parseFloat(e.target.value) : undefined)}
-                  className={cn(
-                    "h-9 bg-white/50 border-gray-200 rounded-lg",
-                    "focus:border-indigo-500/40 focus:ring-2 focus:ring-indigo-500/20",
-                    "hover:border-indigo-500/30 hover:bg-white/60 transition-colors",
-                    "placeholder:text-gray-400",
-                    "text-[10px] sm:text-xs"
-                  )}
-                  placeholder="0.00"
-                />
-                <div className="absolute -top-2 left-2 px-1 bg-white/80 text-[7px] sm:text-[9px] font-medium text-indigo-700">
-                  GPA (OPTIONAL)
-                </div>
-              </div>
-
-              {/* Achievements */}
-              <div className="space-y-1.5">
-                <div className="flex justify-between items-baseline">
-                  <Label className="text-[10px] sm:text-xs font-medium text-indigo-700">Achievements & Activities</Label>
-                  <span className="text-[8px] sm:text-[10px] text-gray-500">One achievement per line</span>
-                </div>
-                <Tiptap
-                  content={(edu.achievements || []).join('\n')}
-                  onChange={(newContent) => updateEducation(index, 'achievements', 
-                    newContent.split('\n').filter(Boolean)
-                  )}
-                  editorProps={{
-                    attributes: {
-                      placeholder: "• Dean's List 2020-2021\n• President of Computer Science Club\n• First Place in Hackathon 2022"
-                    }
-                  }}
-                  className={cn(
-                    "min-h-[120px] bg-white/50 border-gray-200 rounded-lg",
-                    "focus:border-indigo-500/40 focus:ring-2 focus:ring-indigo-500/20",
-                    "hover:border-indigo-500/30 hover:bg-white/60 transition-colors",
-                    "placeholder:text-gray-400",
-                    "text-[10px] sm:text-xs"
-                  )}
-                />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      ))}
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragEnd={handleDragEnd}
+      >
+        <SortableContext items={education.map(e => e.id)} strategy={verticalListSortingStrategy}>
+          {education.map((eduItem) => (
+            <SortableEducationCard
+              key={eduItem.id}
+              educationItem={eduItem}
+              onEducationChange={handleEducationChange}
+              onRemoveEducation={handleRemoveEducation}
+              // Pass achievement related props if/when achievements DND is implemented
+            />
+          ))}
+        </SortableContext>
+      </DndContext>
     </div>
   );
-}, areEducationPropsEqual); 
+}, areEducationPropsEqual);

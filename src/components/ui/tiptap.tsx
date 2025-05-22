@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useMemo, useEffect } from 'react'
-import { useEditor, EditorContent } from '@tiptap/react'
+import { useEditor, EditorContent, Editor } from '@tiptap/react' // Import Editor type
 import Document from '@tiptap/extension-document'
 import Text from '@tiptap/extension-text'
 import Paragraph from '@tiptap/extension-paragraph'
@@ -23,10 +23,13 @@ interface TiptapProps {
       placeholder?: string;
     };
   };
+  onEditorInstanceReady?: (editor: Editor | null) => void; // Updated type
 }
 
+// ForwardRefRenderFunction might be needed if we were to use forwardRef directly with useImperativeHandle
+// For now, passing callback as prop.
 const Tiptap = memo(
-  ({ content, onChange, className, readOnly, variant = 'default', editorProps: customEditorProps }: TiptapProps) => {
+  ({ content, onChange, className, readOnly, variant = 'default', editorProps: customEditorProps, onEditorInstanceReady }: TiptapProps) => {
     // Transform content to HTML before loading
     const transformContent = useCallback((content: string) => {
       return content.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
@@ -90,6 +93,13 @@ const Tiptap = memo(
       }
     }, [content, editor, transformContent]);
 
+    // Call onEditorInstanceReady when editor is initialized
+    useEffect(() => {
+      if (editor && onEditorInstanceReady) {
+        onEditorInstanceReady(editor);
+      }
+    }, [editor, onEditorInstanceReady]);
+
     return <EditorContent editor={editor} />;
   },
   (prevProps, nextProps) => {
@@ -98,7 +108,8 @@ const Tiptap = memo(
       prevProps.className === nextProps.className &&
       prevProps.readOnly === nextProps.readOnly &&
       prevProps.content === nextProps.content &&
-      prevProps.variant === nextProps.variant
+      prevProps.variant === nextProps.variant &&
+      prevProps.onEditorInstanceReady === nextProps.onEditorInstanceReady // Include new prop in comparison
     );
   }
 );

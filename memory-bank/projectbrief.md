@@ -20,7 +20,7 @@ Individuals seeking to create professional resumes, particularly those applying 
 
 *   User authentication and profile management.
 *   Creation and editing of resume sections (contact info, work experience, education, skills, projects, certifications).
-*   AI-driven content generation and tailoring for resumes.
+*   Advanced AI-driven content generation and tailoring for resumes, powered by a LangGraph-based cognitive agent backend for enhanced quality, ATS optimization, and STAR methodology implementation.
 *   Storage of base resumes and tailored resumes.
 *   Management of job listings and their requirements.
 *   PDF export of resumes.
@@ -32,11 +32,12 @@ Individuals seeking to create professional resumes, particularly those applying 
 *   **Frontend:** Next.js 15, React 19, TypeScript
 *   **UI:** Shadcn UI, Tailwind CSS
 *   **Backend/Database:** Supabase (PostgreSQL)
-*   **AI Integration:** Vercel AI SDK, various LLM providers
+*   **Resume Tailoring AI Backend:** LangGraph, Python, Docker, Resume-Matcher
+*   **AI Integration (General/Other Features):** Vercel AI SDK, various LLM providers (Note: Vercel AI SDK role for resume tailoring is superseded by the LangGraph backend)
 
 ## 6. Scope Considerations
 
-*   Initial focus is on resume building and tailoring.
+*   Initial focus is on resume building and tailoring. A significant architectural enhancement involves developing a new LangGraph-based backend for the tailored resume feature.
 *   Cover letter generation is a potential future feature (indicated by `has_cover_letter` fields).
 *   The system should be robust in handling data from AI models, including optional or missing fields.
 

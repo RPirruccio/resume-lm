@@ -2,7 +2,7 @@
 
 ## 1. System Architecture Overview
 
-ResumeLM employs a modern web architecture with a Next.js frontend, a Supabase backend (PostgreSQL database and authentication), and integrates with various third-party AI services for content generation and tailoring.
+ResumeLM employs a modern web architecture with a Next.js frontend and a Supabase backend (PostgreSQL database and authentication). For AI-driven resume tailoring, it integrates with a dedicated LangGraph-based cognitive agent backend. Other AI features may still utilize the Vercel AI SDK.
 
 ```mermaid
 graph TD
@@ -10,11 +10,12 @@ graph TD
     NextJS -->|API Routes / Server Actions| Supabase["Supabase Backend"]
     Supabase -->|SQL| DB[(PostgreSQL Database)]
     Supabase -->|Auth| Auth["Supabase Auth"]
-    NextJS -->|API Routes / Server Actions| AISDK["Vercel AI SDK"]
-    AISDK -->|HTTPS| LLM1["OpenAI API"]
-    AISDK -->|HTTPS| LLM2["Anthropic API"]
-    AISDK -->|HTTPS| LLM3["Google Gemini API"]
-    AISDK -->|HTTPS| LLM_Other["Other LLM APIs"]
+    
+    NextJS -- For Resume Tailoring -->|API Call| LangGraphAPI["LangGraph Backend API (Python/Docker)"]
+    LangGraphAPI -->|Internal LLM Calls, Resume-Matcher| LLMsRM["LLMs / Resume-Matcher"]
+
+    NextJS -- For Other AI Features -->|API Routes / Server Actions| AISDK["Vercel AI SDK"]
+    AISDK -->|HTTPS| LLM_Providers["Various LLM APIs (OpenAI, Anthropic, Gemini, etc.)"]
 
     subgraph frontend ["Frontend (Next.js App)"]
         direction LR
@@ -29,6 +30,7 @@ graph TD
     Components --> State
     Components --> Utils
     Utils --> Supabase
+    Utils --> LangGraphAPI 
     Utils --> AISDK
 ```
 
@@ -37,7 +39,8 @@ graph TD
 *   **Framework Choice:** Next.js (App Router) for its robust features for full-stack development, including server components, server actions, and optimized performance.
 *   **Backend as a Service (BaaS):** Supabase for its integrated PostgreSQL database, authentication, and ease of use, reducing backend boilerplate.
 *   **UI Components:** Shadcn UI for its accessible, customizable, and unstyled components, combined with Tailwind CSS for styling, allowing for rapid UI development while adhering to the "Soft Gradient Minimalism" design.
-*   **AI Integration:** Vercel AI SDK to provide a unified interface for interacting with multiple Large Language Models (LLMs), allowing flexibility in model choice.
+*   **AI Integration for Resume Tailoring:** A dedicated LangGraph-based cognitive agent backend (Python, Docker, Resume-Matcher) to provide advanced, multi-step resume tailoring with integrated ATS optimization and quality control. This supersedes the direct use of Vercel AI SDK for this specific feature.
+*   **AI Integration (Other Features):** Vercel AI SDK may still be used for other, simpler AI tasks, providing a unified interface to various LLMs.
 *   **TypeScript:** For type safety and improved developer experience across the codebase.
 *   **Database Schema:** Relational structure with UUID primary keys and timestamps. JSONB fields are used for flexible, nested data within resume sections (e.g., `work_experience`, `education`, `skills`).
 
@@ -179,14 +182,19 @@ create table public.subscriptions (
 
 ## 5. Critical Implementation Paths
 
-*   **AI Resume Tailoring:**
-    1.  User selects a base resume and a target job.
-    2.  Frontend sends data to a server action/API route.
-    3.  Backend retrieves job details and resume content.
-    4.  Content is passed to an LLM via Vercel AI SDK with appropriate prompts (defined in `src/lib/prompts.ts`) and schema (`simplifiedResumeSchema` from `src/lib/zod-schemas.ts`).
-    5.  LLM returns tailored resume content (JSON object).
-    6.  Backend saves the new tailored resume to the `resumes` table.
-    7.  Frontend displays the tailored resume.
+*   **AI Resume Tailoring (New Architecture):**
+    1.  User selects a base resume and a target job within the Next.js frontend.
+    2.  Frontend sends data (base resume JSON, job details/URL, user preferences) via a server action or API route to an intermediary layer that calls the LangGraph Backend API.
+    3.  The LangGraph Backend API (Python/Docker service) processes the input through its cognitive agent architecture:
+        *   **Input Processing Subgraph:** Scrapes/parses job details, extracts key requirements.
+        *   **Resume Drafting Subgraph:** Generates tailored resume sections using LLMs, applying STAR methodology.
+        *   **ATS Optimization Subgraph:** Evaluates the draft using Resume-Matcher, calculates ATS score, identifies missing keywords.
+        *   **Quality Gate (Supervisor):** If ATS score is low, loops back to Resume Drafting with feedback.
+        *   **Human Review Subgraph (Optional):** Presents draft for user approval/revision requests.
+        *   **Format Optimization Subgraph:** Finalizes resume structure for PDF and database compatibility.
+    4.  The LangGraph API returns the final tailored resume (JSON), ATS report, and change summary.
+    5.  The Next.js backend saves the new tailored resume to the `resumes` table in Supabase.
+    6.  Frontend displays the tailored resume and associated reports.
 *   **PDF Generation:**
     1.  User views a resume.
     2.  Resume data is passed to `ResumePDFDocument` component.
@@ -203,6 +211,6 @@ create table public.subscriptions (
 *   **`projects` (Array):** `{ name, description (string[]), date?, technologies? (string[]), url?, github_url? }`
 *   **`certifications` (Array):** *(Structure not explicitly defined in `.cursorrules` but implied by other JSONB arrays, likely `{ name, authority?, date?, url? }`)*
 *   **`section_configs` (Object):** `{ [sectionName]: { visible: boolean, max_items?: number | null, style?: 'grouped' | 'list' | 'grid' } }`
-*   **`document_settings` (Object):** Controls PDF styling (font sizes, margins, spacing).
+*   **`document_settings` (Object):** Controls PDF styling (font sizes, margins, spacing). Includes global settings, header settings, and specific margin/spacing settings for sections like Skills, Experience, Projects, Education, and Professional Summary (e.g., `summary_show_header`, `summary_margin_top`).
 
 This document outlines the primary system patterns. It will be updated as the system evolves and new patterns emerge or existing ones are refined.

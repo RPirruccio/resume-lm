@@ -12,7 +12,7 @@
  */
 
 import { redirect } from "next/navigation";
-import { countResumes } from "../utils/actions/resumes/actions";
+// import { countResumes } from "../utils/actions/resumes/actions"; // Removed unused import
 import {User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -107,16 +107,16 @@ export default async function Home({
 
   // console.log(subscription);
   
-  // Count resumes for base and tailored sections
-  const baseResumesCount = await countResumes('base');
-  const tailoredResumesCount = await countResumes('tailored');
+  // Count resumes for base and tailored sections (Counts no longer used for limits)
+  // const baseResumesCount = await countResumes('base');
+  // const tailoredResumesCount = await countResumes('tailored');
   // console.log(baseResumesCount, tailoredResumesCount);
   // console.log(isProPlan);
   
 
-  // Free plan limits
-  const canCreateBase = isProPlan || baseResumesCount < 2;
-  const canCreateTailored = isProPlan || tailoredResumesCount < 4;
+  // Free plan limits (REMOVED - For unlimited open-source usage)
+  const canCreateBase = true; //isProPlan || baseResumesCount < 2;
+  const canCreateTailored = true; //isProPlan || tailoredResumesCount < 4;
 
 
   // Display a friendly message if no profile exists

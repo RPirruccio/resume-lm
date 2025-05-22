@@ -14,6 +14,7 @@ import { CreateBaseResumeDialog } from "./create-base-resume-dialog";
 import { tailorResumeToJob } from "@/utils/actions/jobs/ai";
 import { formatJobListing } from "@/utils/actions/jobs/ai";
 import { createJob } from "@/utils/actions/jobs/actions";
+import { addClientSideIdsToAiResumeOutput, ProcessedAIContent } from "@/utils/data-transformation"; // Added import
 import { MiniResumePreview } from "../../shared/mini-resume-preview";
 import { LoadingOverlay, type CreationStep } from "../loading-overlay";
 import { BaseResumeSelector } from "../base-resume-selector"; 
@@ -213,8 +214,8 @@ export function CreateTailoredResumeDialog({ children, baseResumes, profile }: C
       setCurrentStep('tailoring');
 
       // 4. Tailor the resume using the formatted job listing
-      let tailoredContent;
-
+      let tailoredContent; // This will be of type z.infer<typeof simplifiedResumeSchema>
+      
       try {
         tailoredContent = await tailorResumeToJob(baseResume, formattedJobListing, {
           model: selectedModel || '',
@@ -244,14 +245,16 @@ export function CreateTailoredResumeDialog({ children, baseResumes, profile }: C
 
       setCurrentStep('finalizing');
 
+      // 5. Process AI content to add client-side IDs
+      const processedTailoredContent: ProcessedAIContent = addClientSideIdsToAiResumeOutput(tailoredContent);
       
-      // 5. Create the tailored resume with job reference
+      // 6. Create the tailored resume with job reference
       const resume = await createTailoredResume(
         baseResume,
         jobEntry.id,
         formattedJobListing.position_title || '',
         formattedJobListing.company_name || '',
-        tailoredContent,
+        processedTailoredContent, // Use the processed content here
       );
 
       toast({
@@ -492,4 +495,4 @@ export function CreateTailoredResumeDialog({ children, baseResumes, profile }: C
 
     </>
   );
-} 
+}

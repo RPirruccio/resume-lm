@@ -98,6 +98,12 @@ export function DocumentSettingsForm({ documentSettings, onChange }: DocumentSet
     education_margin_bottom: 2,
     education_margin_horizontal: 0,
     education_item_spacing: 4,
+
+    // Summary Section
+    summary_show_header: true,
+    summary_margin_top: 8,
+    summary_margin_bottom: 8,
+    summary_margin_horizontal: 0,
   };
 
   // Initialize document_settings if it doesn't exist
@@ -704,6 +710,132 @@ export function DocumentSettingsForm({ documentSettings, onChange }: DocumentSet
             </div>
           </div>
 
+          {/* Professional Summary Section */}
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <Label className="text-base font-semibold bg-gradient-to-r from-teal-600 to-cyan-600 bg-clip-text text-transparent">Professional Summary</Label>
+              <div className="h-[1px] flex-1 mx-4 bg-gradient-to-r from-teal-200/20 via-cyan-200/20 to-transparent" />
+            </div>
+            <div className="space-y-4 bg-slate-50/50 rounded-lg p-4 border border-slate-200/50">
+              {/* Show Header Toggle */}
+              <div className="flex items-center justify-between">
+                <Label htmlFor="summary-show-header" className="text-sm font-medium text-muted-foreground">{"Show 'SUMMARY' Title in PDF"}</Label>
+                <Switch
+                  id="summary-show-header"
+                  checked={documentSettings?.summary_show_header ?? true}
+                  onCheckedChange={(checked) =>
+                    handleSettingsChange({
+                      ...documentSettings,
+                      summary_show_header: checked,
+                    })
+                  }
+                />
+              </div>
+
+              {/* Margin Top */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm font-medium text-muted-foreground">Space Above Summary Section</Label>
+                  <div className="flex items-center">
+                    <NumberInput
+                      value={documentSettings?.summary_margin_top ?? 8}
+                      min={0}
+                      max={48}
+                      step={1}
+                      onChange={(value) => 
+                        handleSettingsChange({
+                          ...documentSettings,
+                          summary_margin_top: value
+                        })
+                      }
+                    />
+                    <span className="text-xs text-muted-foreground/60 ml-1">pt</span>
+                  </div>
+                </div>
+                <Slider
+                  value={[Number(documentSettings?.summary_margin_top ?? 8)]}
+                  min={0}
+                  max={48}
+                  step={1}
+                  onValueChange={([value]) => 
+                    handleSettingsChange({
+                      ...documentSettings,
+                      summary_margin_top: value
+                    })
+                  }
+                />
+              </div>
+
+              {/* Margin Bottom */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm font-medium text-muted-foreground">Space Below Summary Section</Label>
+                  <div className="flex items-center">
+                    <NumberInput
+                      value={documentSettings?.summary_margin_bottom ?? 8}
+                      min={0}
+                      max={48}
+                      step={1}
+                      onChange={(value) => 
+                        handleSettingsChange({
+                          ...documentSettings,
+                          summary_margin_bottom: value
+                        })
+                      }
+                    />
+                    <span className="text-xs text-muted-foreground/60 ml-1">pt</span>
+                  </div>
+                </div>
+                <Slider
+                  value={[Number(documentSettings?.summary_margin_bottom ?? 8)]}
+                  min={0}
+                  max={48}
+                  step={1}
+                  onValueChange={([value]) => 
+                    handleSettingsChange({
+                      ...documentSettings,
+                      summary_margin_bottom: value
+                    })
+                  }
+                />
+              </div>
+
+              {/* Margin Horizontal */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm font-medium text-muted-foreground">Horizontal Margins for Summary</Label>
+                  <div className="flex items-center">
+                    <NumberInput
+                      value={documentSettings?.summary_margin_horizontal ?? 0}
+                      min={0}
+                      max={72}
+                      step={2}
+                      onChange={(value) => 
+                        handleSettingsChange({
+                          ...documentSettings,
+                          summary_margin_horizontal: value
+                        })
+                      }
+                    />
+                    <span className="text-xs text-muted-foreground/60 ml-1">pt</span>
+                  </div>
+                </div>
+                <Slider
+                  value={[Number(documentSettings?.summary_margin_horizontal ?? 0)]}
+                  min={0}
+                  max={72}
+                  step={2}
+                  onValueChange={([value]) => 
+                    handleSettingsChange({
+                      ...documentSettings,
+                      summary_margin_horizontal: value
+                    })
+                  }
+                />
+              </div>
+            </div>
+          </div>
+
           {/* Skills Section */}
           <div className="space-y-6">
             <div className="flex items-center justify-between">
@@ -743,4 +875,4 @@ export function DocumentSettingsForm({ documentSettings, onChange }: DocumentSet
       </Card>
     </div>
   );
-} 
+}

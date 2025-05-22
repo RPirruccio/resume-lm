@@ -41,15 +41,19 @@ function useTextProcessor() {
       return cachedValue !== undefined ? cachedValue : [<Text key="empty-cache-fallback"></Text>];
     }
 
+    // Decode the text *after* cache check and before processing
+    // Use string literal with RegExp constructor to avoid formatter issues with &amp;
+    const decodedText = text.replace(new RegExp('&amp;', 'g'), '&');
+
     let processed: ReactNode[];
     if (ignoreMarkdown) {
       // The original error line: text.match might be called on undefined if text wasn't a string.
-      // Now 'text' is guaranteed to be a non-empty string here.
-      const content = text.match(/\*\*(.*?)\*\*/)?.[1] || text;
+      // Now 'decodedText' is guaranteed to be a non-empty string here.
+      const content = decodedText.match(/\*\*(.*?)\*\*/)?.[1] || decodedText;
       processed = [<Text key={0}>{content}</Text>];
     } else {
-      // 'text' is guaranteed to be a non-empty string here.
-      const parts = text.split(/(\*\*.*?\*\*)/g);
+      // 'decodedText' is guaranteed to be a non-empty string here.
+      const parts = decodedText.split(/(\*\*.*?\*\*)/g);
       processed = parts.map((part, index) => {
         if (part.startsWith('**') && part.endsWith('**')) {
           return <Text key={index} style={{ fontFamily: 'Helvetica-Bold' }}>{part.slice(2, -2)}</Text>;
@@ -130,6 +134,27 @@ const HeaderSection = memo(function HeaderSection({
   );
 });
 
+const ProfessionalSummarySection = memo(function ProfessionalSummarySection({
+  summary,
+  styles,
+  processText,
+  showHeader,
+}: {
+  summary: Resume['professional_summary'];
+  styles: ReturnType<typeof createResumeStyles>;
+  processText: (text: string | undefined | null, ignoreMarkdown?: boolean) => ReactNode[];
+  showHeader?: boolean;
+}) {
+  if (!summary?.trim()) return null;
+
+  return (
+    <View style={styles.summarySection}>
+      {(showHeader ?? true) && <Text style={styles.sectionTitle}>SUMMARY</Text>}
+      <Text style={styles.summaryText}>{processText(summary)}</Text>
+    </View>
+  );
+});
+
 const SkillsSection = memo(function SkillsSection({ 
   skills, 
   styles 
@@ -145,8 +170,12 @@ const SkillsSection = memo(function SkillsSection({
       <View style={styles.skillsGrid}>
         {skills.map((skillCategory, index) => (
           <View key={index} style={styles.skillCategory}>
-            <Text style={styles.skillCategoryTitle}>{skillCategory.category}:</Text>
-            <Text style={styles.skillItem}>{skillCategory.items && Array.isArray(skillCategory.items) ? skillCategory.items.join(', ') : ''}</Text>
+            <Text style={styles.skillCategoryTitle}>{skillCategory.category ? skillCategory.category.replace(new RegExp('&amp;', 'g'), '&') : ''}:</Text>
+            <Text style={styles.skillItem}>
+              {skillCategory.items && Array.isArray(skillCategory.items)
+                ? skillCategory.items.map(item => item && item.content ? item.content.replace(new RegExp('&', 'g'), '&') : '').join(', ')
+                : ''}
+            </Text>
           </View>
         ))}
       </View>
@@ -172,16 +201,24 @@ const ExperienceSection = memo(function ExperienceSection({
           <View style={styles.experienceHeader}>
             <View>
               <Text style={styles.companyName}>{processText(experience.position, true)}</Text>
-              <Text style={styles.jobTitle}>{processText(experience.company, true)}</Text>
+              <Text style={styles.jobTitle}>
+                {processText(experience.company, true)}
+                {experience.location && (
+                  <>
+                    <Text>, </Text>
+                    {processText(experience.location, true)}
+                  </>
+                )}
+              </Text>
             </View>
             <Text style={styles.dateRange}>{experience.date}</Text>
           </View>
-          {experience.description && Array.isArray(experience.description) && experience.description.map((bullet, bulletIndex) => (
+          {experience.description && Array.isArray(experience.description) && experience.description.map((bulletPoint, bulletIndex) => (
             <View key={bulletIndex} style={styles.bulletPoint}>
               <Text style={styles.bulletDot}>•</Text>
               <View style={styles.bulletText}>
                 <Text style={styles.bulletTextContent}>
-                  {processText(bullet)}
+                  {processText(bulletPoint.content)}
                 </Text>
               </View>
             </View>
@@ -231,17 +268,17 @@ const ProjectsSection = memo(function ProjectsSection({
             </View>
             {project.technologies && Array.isArray(project.technologies) && (
               <Text style={styles.projectTechnologies}>
-                {project.technologies.map(tech => tech ? tech.replace(/\*\*/g, '') : '').join(', ')}
+                {project.technologies.map(tech => tech ? tech.replace(/\*\*/g, '').replace(new RegExp('&amp;', 'g'), '&') : '').join(', ')}
               </Text>
             )}
           </View>
           
-          {project.description && Array.isArray(project.description) && project.description.map((bullet, bulletIndex) => (
+          {project.description && Array.isArray(project.description) && project.description.map((bulletPoint, bulletIndex) => (
             <View key={bulletIndex} style={styles.bulletPoint}>
               <Text style={styles.bulletDot}>•</Text>
               <View style={styles.bulletText}>
                 <Text style={styles.bulletTextContent}>
-                  {processText(bullet)}
+                  {processText(bulletPoint.content)}
                 </Text>
               </View>
             </View>
@@ -269,8 +306,16 @@ const EducationSection = memo(function EducationSection({
         <View key={index} style={styles.educationItem}>
           <View style={styles.educationHeader}>
             <View>
-              <Text style={styles.schoolName}>{processText(edu.school, true)}</Text>
-              <Text style={styles.degree}>{processText(`${edu.degree} ${edu.field}`)}</Text>
+              <Text style={styles.schoolName}>{processText(`${edu.degree} ${edu.field}`, true)}</Text> 
+              <Text style={styles.degree}>
+                {processText(edu.school, true)}
+                {edu.location && (
+                  <>
+                    <Text>, </Text>
+                    {processText(edu.location, true)}
+                  </>
+                )}
+              </Text>
             </View>
             <Text style={styles.dateRange}>{edu.date}</Text>
           </View>
@@ -340,6 +385,12 @@ function createResumeStyles(settings: Resume['document_settings'] = {
     footer_width = 95,
   } = settings;
 
+  // Define typical margins for a summary, can be adjusted
+  const summary_margin_top = settings.summary_margin_top ?? 8;
+  const summary_margin_bottom = settings.summary_margin_bottom ?? 8;
+  const summary_margin_horizontal = settings.summary_margin_horizontal ?? 0;
+
+
   return StyleSheet.create({
     ...baseStyles,
     // Base page configuration
@@ -354,6 +405,17 @@ function createResumeStyles(settings: Resume['document_settings'] = {
       lineHeight: document_line_height,
       position: 'relative',
       // backgroundColor: '#32a852',  // Bright green color that should be very visible for testing
+    },
+    summarySection: {
+      marginTop: summary_margin_top,
+      marginBottom: summary_margin_bottom,
+      marginLeft: summary_margin_horizontal,
+      marginRight: summary_margin_horizontal,
+    },
+    summaryText: {
+      fontSize: document_font_size,
+      color: '#374151', // Slightly lighter than section titles or main text
+      textAlign: 'justify', // Or 'left'
     },
     header: {
       alignItems: 'center',
@@ -438,6 +500,7 @@ function createResumeStyles(settings: Resume['document_settings'] = {
       fontSize: document_font_size,
       color: '#111827',
     },
+    // locationText style is no longer needed as per new requirements
     dateRange: {
       fontSize: document_font_size,
       color: '#111827',
@@ -554,15 +617,38 @@ interface ResumePDFDocumentProps {
 export const ResumePDFDocument = memo(function ResumePDFDocument({ resume }: ResumePDFDocumentProps) {
   // Memoize styles based on document settings
   const styles = useMemo(() => createResumeStyles(resume.document_settings), [resume.document_settings]);
+  const processText = useTextProcessor();
+
+  const isSummarySectionVisibleByConfig = resume.section_configs?.professional_summary?.visible ?? true;
+  const isSummaryRenderRequestedByLayout = resume.document_settings?.summary_show_header ?? true;
+  const shouldRenderEntireSummarySection = isSummarySectionVisibleByConfig && isSummaryRenderRequestedByLayout;
 
   return (
     <PDFDocument>
       <PDFPage size="LETTER" style={styles.page}>
         <HeaderSection resume={resume} styles={styles} />
-        <SkillsSection skills={resume.skills} styles={styles} />
-        <ExperienceSection experiences={resume.work_experience} styles={styles} />
-        <ProjectsSection projects={resume.projects} styles={styles} />
-        <EducationSection education={resume.education} styles={styles} />
+        {shouldRenderEntireSummarySection && resume.professional_summary && (
+          <ProfessionalSummarySection 
+            summary={resume.professional_summary} 
+            styles={styles} 
+            processText={processText} 
+            // Since the section's rendering is now tied to summary_show_header,
+            // if the section renders, the header within it (if any) should be based on the same flag.
+            showHeader={isSummaryRenderRequestedByLayout} 
+          />
+        )}
+        {resume.section_configs?.skills?.visible !== false && (
+          <SkillsSection skills={resume.skills} styles={styles} />
+        )}
+        {resume.section_configs?.work_experience?.visible !== false && (
+          <ExperienceSection experiences={resume.work_experience} styles={styles} />
+        )}
+        {resume.section_configs?.projects?.visible !== false && (
+          <ProjectsSection projects={resume.projects} styles={styles} />
+        )}
+        {resume.section_configs?.education?.visible !== false && (
+          <EducationSection education={resume.education} styles={styles} />
+        )}
         
         {resume.document_settings?.show_ubc_footer && (
           <View style={styles.footer}>

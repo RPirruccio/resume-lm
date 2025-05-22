@@ -49,6 +49,7 @@ function generateResumeHash(resume: Resume): string {
       experience: resume.work_experience,
       projects: resume.projects,
       education: resume.education,
+      summary: resume.professional_summary, // Added professional_summary
     },
     settings: resume.document_settings,
   });
@@ -340,4 +341,4 @@ export const ResumePreview = memo(function ResumePreview({ resume, variant = 'ba
     prevProps.variant === nextProps.variant &&
     prevProps.containerWidth === nextProps.containerWidth
   );
-}); 
+});
